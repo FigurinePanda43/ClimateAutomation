@@ -1,0 +1,1327 @@
+alias: Chauffage multi-zones programmé - Gestion Tempo et production solaire V7.2
+description: >-
+  Chauffage multi-zones programmé avec gestion Tempo améliorée Version
+  totalement paramétrable via interface - Flux d'air horizontal/vertical groupé
+triggers:
+  - trigger: template
+    value_template: >-
+      {{ now().strftime('%H:%M:00') ==
+      states('input_datetime.heure_start_rouge_tempo')[0:8] }}
+    id: start_rouge_tempo
+  - trigger: template
+    value_template: >-
+      {{ now().strftime('%H:%M:00') ==
+      states('input_datetime.heure_start_normal')[0:8] }}
+    id: start_normal
+  - trigger: template
+    value_template: >-
+      {{ now().strftime('%H:%M:00') ==
+      states('input_datetime.heure_stop_rouge_matin')[0:8] }}
+    id: stop_rouge_matin
+  - trigger: template
+    value_template: >
+      {% set sunset = state_attr('sun.sun', 'next_setting') | as_timestamp %} {%
+      set offset_str = states('input_datetime.decalage_coucher_soleil') %} {%
+      set offset_hours = offset_str.split(':')[0] | int %} {% set offset_minutes
+      = offset_str.split(':')[1] | int %} {% set offset_seconds = offset_hours *
+      3600 + offset_minutes * 60 %} {% set trigger_time = sunset -
+      offset_seconds %} {{ now().timestamp() >= trigger_time and
+         (now().timestamp() - trigger_time) < 60 }}
+    id: stop_all
+  - trigger: time_pattern
+    minutes: /5
+    id: check_conditions
+  - trigger: state
+    entity_id: sensor.compteur_electricite_power_a
+    id: solar_changed
+  - trigger: state
+    entity_id:
+      - input_number.chauffage_temp_confort
+      - input_number.chauffage_temp_eco
+    id: temp_changed
+  - trigger: state
+    entity_id:
+      - input_select.clim_mode_auto
+      - input_select.clim_fan_mode
+      - input_select.clim_flux_horizontal
+      - input_select.clim_flux_vertical
+    id: settings_changed
+  - trigger: state
+    entity_id:
+      - input_boolean.clim_salon_active
+      - input_boolean.clim_cesar_active
+      - input_boolean.clim_chambre_bas_active
+      - input_boolean.clim_amis_active
+      - input_boolean.clim_principale_active
+    from: "on"
+    to: "off"
+    id: device_disabled
+  - trigger: state
+    entity_id:
+      - input_boolean.clim_salon_active
+      - input_boolean.clim_cesar_active
+      - input_boolean.clim_chambre_bas_active
+      - input_boolean.clim_amis_active
+      - input_boolean.clim_principale_active
+    from: "off"
+    to: "on"
+    id: device_enabled
+  - trigger: state
+    entity_id:
+      - input_number.seuil_production_haute
+      - input_number.seuil_production_basse
+    id: seuil_changed
+  - trigger: state
+    entity_id:
+      - input_boolean.chauffage_janvier
+      - input_boolean.chauffage_fevrier
+      - input_boolean.chauffage_mars
+      - input_boolean.chauffage_avril
+      - input_boolean.chauffage_mai
+      - input_boolean.chauffage_juin
+      - input_boolean.chauffage_juillet
+      - input_boolean.chauffage_aout
+      - input_boolean.chauffage_septembre
+      - input_boolean.chauffage_octobre
+      - input_boolean.chauffage_novembre
+      - input_boolean.chauffage_decembre
+    id: month_changed
+  - trigger: state
+    entity_id:
+      - input_datetime.heure_start_rouge_tempo
+      - input_datetime.heure_start_normal
+      - input_datetime.heure_stop_rouge_matin
+      - input_datetime.decalage_coucher_soleil
+    id: horaire_changed
+conditions:
+  - condition: template
+    value_template: |
+      {% set month = now().month %} {% set month_names = {
+        1: 'chauffage_janvier',
+        2: 'chauffage_fevrier',
+        3: 'chauffage_mars',
+        4: 'chauffage_avril',
+        5: 'chauffage_mai',
+        6: 'chauffage_juin',
+        7: 'chauffage_juillet',
+        8: 'chauffage_aout',
+        9: 'chauffage_septembre',
+        10: 'chauffage_octobre',
+        11: 'chauffage_novembre',
+        12: 'chauffage_decembre'
+      } %} {{ states('input_boolean.' + month_names[month]) == 'on' }}
+actions:
+  - choose:
+      - conditions:
+          - condition: trigger
+            id: device_disabled
+        sequence:
+          - choose:
+              - conditions:
+                  - condition: state
+                    entity_id: input_boolean.clim_salon_active
+                    state: "off"
+                sequence:
+                  - target:
+                      entity_id: climate.clim_salon_local
+                    data:
+                      hvac_mode: "off"
+                    action: climate.set_hvac_mode
+              - conditions:
+                  - condition: state
+                    entity_id: input_boolean.clim_cesar_active
+                    state: "off"
+                sequence:
+                  - target:
+                      entity_id: climate.clim_cesar_local
+                    data:
+                      hvac_mode: "off"
+                    action: climate.set_hvac_mode
+              - conditions:
+                  - condition: state
+                    entity_id: input_boolean.clim_chambre_bas_active
+                    state: "off"
+                sequence:
+                  - target:
+                      entity_id: climate.clim_chambre_bas_2
+                    data:
+                      hvac_mode: "off"
+                    action: climate.set_hvac_mode
+              - conditions:
+                  - condition: state
+                    entity_id: input_boolean.clim_amis_active
+                    state: "off"
+                sequence:
+                  - target:
+                      entity_id: climate.clim_amis_2
+                    data:
+                      hvac_mode: "off"
+                    action: climate.set_hvac_mode
+              - conditions:
+                  - condition: state
+                    entity_id: input_boolean.clim_principale_active
+                    state: "off"
+                sequence:
+                  - target:
+                      entity_id: climate.clim_chambre_principale
+                    data:
+                      hvac_mode: "off"
+                    action: climate.set_hvac_mode
+      - conditions:
+          - condition: trigger
+            id: device_enabled
+        sequence:
+          - repeat:
+              for_each: "{{ active_devices }}"
+              sequence:
+                - choose:
+                    - conditions:
+                        - condition: template
+                          value_template: >
+                            {% set production =
+                            states('sensor.compteur_electricite_power_a') |
+                            float(0) %} {% set seuil =
+                            states('input_number.seuil_production_haute') |
+                            float(1.2) %} {{ production > seuil }}
+                      sequence:
+                        - target:
+                            entity_id: "{{ repeat.item }}"
+                          data:
+                            hvac_mode: "{{ states('input_select.clim_mode_auto') }}"
+                          action: climate.set_hvac_mode
+                        - target:
+                            entity_id: "{{ repeat.item }}"
+                          data:
+                            temperature: >-
+                              {{ states('input_number.chauffage_temp_confort') |
+                              float(24) }}
+                          action: climate.set_temperature
+                        - target:
+                            entity_id: "{{ repeat.item }}"
+                          data:
+                            fan_mode: "{{ states('input_select.clim_fan_mode') }}"
+                          action: climate.set_fan_mode
+                        - target:
+                            entity_id: "{{ flux_h_map[repeat.item] }}"
+                          data:
+                            option: "{{ states('input_select.clim_flux_horizontal') }}"
+                          action: select.select_option
+                        - target:
+                            entity_id: "{{ flux_v_map[repeat.item] }}"
+                          data:
+                            option: "{{ states('input_select.clim_flux_vertical') }}"
+                          action: select.select_option
+                    - conditions:
+                        - condition: template
+                          value_template: >
+                            {% set production =
+                            states('sensor.compteur_electricite_power_a') |
+                            float(0) %} {% set seuil =
+                            states('input_number.seuil_production_basse') |
+                            float(1.0) %} {{ production >= seuil }}
+                      sequence:
+                        - target:
+                            entity_id: "{{ repeat.item }}"
+                          data:
+                            hvac_mode: "{{ states('input_select.clim_mode_auto') }}"
+                          action: climate.set_hvac_mode
+                        - target:
+                            entity_id: "{{ repeat.item }}"
+                          data:
+                            temperature: >-
+                              {{ states('input_number.chauffage_temp_eco') |
+                              float(19) }}
+                          action: climate.set_temperature
+                        - target:
+                            entity_id: "{{ repeat.item }}"
+                          data:
+                            fan_mode: "{{ states('input_select.clim_fan_mode') }}"
+                          action: climate.set_fan_mode
+                        - target:
+                            entity_id: "{{ flux_h_map[repeat.item] }}"
+                          data:
+                            option: "{{ states('input_select.clim_flux_horizontal') }}"
+                          action: select.select_option
+                        - target:
+                            entity_id: "{{ flux_v_map[repeat.item] }}"
+                          data:
+                            option: "{{ states('input_select.clim_flux_vertical') }}"
+                          action: select.select_option
+      - conditions:
+          - condition: trigger
+            id: start_rouge_tempo
+          - condition: state
+            entity_id: sensor.tarif_tempo_couleur_aujourd_hui
+            state: rouge
+        sequence:
+          - repeat:
+              for_each: "{{ active_devices }}"
+              sequence:
+                - choose:
+                    - conditions:
+                        - condition: template
+                          value_template: >
+                            {% set current_mode = states(repeat.item) %} {% set
+                            current_temp = state_attr(repeat.item,
+                            'temperature') | float(0) %} {% set target_temp =
+                            states('input_number.chauffage_temp_eco') |
+                            float(19) %} {% set target_mode =
+                            states('input_select.clim_mode_auto') %} {% set
+                            current_fan = state_attr(repeat.item, 'fan_mode') %}
+                            {% set target_fan =
+                            states('input_select.clim_fan_mode') %} {% set
+                            current_flux_h = states(flux_h_map[repeat.item]) %}
+                            {% set target_flux_h =
+                            states('input_select.clim_flux_horizontal') %} {%
+                            set current_flux_v = states(flux_v_map[repeat.item])
+                            %} {% set target_flux_v =
+                            states('input_select.clim_flux_vertical') %} {{
+                            current_mode != target_mode or current_temp !=
+                            target_temp or current_fan != target_fan or
+                            current_flux_h != target_flux_h or current_flux_v !=
+                            target_flux_v }}
+                      sequence:
+                        - target:
+                            entity_id: "{{ repeat.item }}"
+                          data:
+                            hvac_mode: "{{ states('input_select.clim_mode_auto') }}"
+                          action: climate.set_hvac_mode
+                        - target:
+                            entity_id: "{{ repeat.item }}"
+                          data:
+                            temperature: >-
+                              {{ states('input_number.chauffage_temp_eco') |
+                              float(19) }}
+                          action: climate.set_temperature
+                        - target:
+                            entity_id: "{{ repeat.item }}"
+                          data:
+                            fan_mode: "{{ states('input_select.clim_fan_mode') }}"
+                          action: climate.set_fan_mode
+                        - target:
+                            entity_id: "{{ flux_h_map[repeat.item] }}"
+                          data:
+                            option: "{{ states('input_select.clim_flux_horizontal') }}"
+                          action: select.select_option
+                        - target:
+                            entity_id: "{{ flux_v_map[repeat.item] }}"
+                          data:
+                            option: "{{ states('input_select.clim_flux_vertical') }}"
+                          action: select.select_option
+      - conditions:
+          - condition: trigger
+            id: stop_rouge_matin
+          - condition: state
+            entity_id: sensor.tarif_tempo_couleur_aujourd_hui
+            state: rouge
+        sequence:
+          - repeat:
+              for_each: "{{ active_devices }}"
+              sequence:
+                - choose:
+                    - conditions:
+                        - condition: template
+                          value_template: >
+                            {{ states(repeat.item) in ['heat', 'cool', 'dry',
+                            'fan_only', 'auto'] }}
+                      sequence:
+                        - target:
+                            entity_id: "{{ repeat.item }}"
+                          data:
+                            hvac_mode: "off"
+                          action: climate.set_hvac_mode
+      - conditions:
+          - condition: trigger
+            id: start_normal
+          - condition: template
+            value_template: |
+              {{ states('sensor.tarif_tempo_couleur_aujourd_hui') != 'rouge' }}
+        sequence:
+          - repeat:
+              for_each: "{{ active_devices }}"
+              sequence:
+                - choose:
+                    - conditions:
+                        - condition: template
+                          value_template: >
+                            {% set current_mode = states(repeat.item) %} {% set
+                            current_temp = state_attr(repeat.item,
+                            'temperature') | float(0) %} {% set target_temp =
+                            states('input_number.chauffage_temp_eco') |
+                            float(19) %} {% set target_mode =
+                            states('input_select.clim_mode_auto') %} {% set
+                            current_fan = state_attr(repeat.item, 'fan_mode') %}
+                            {% set target_fan =
+                            states('input_select.clim_fan_mode') %} {% set
+                            current_flux_h = states(flux_h_map[repeat.item]) %}
+                            {% set target_flux_h =
+                            states('input_select.clim_flux_horizontal') %} {%
+                            set current_flux_v = states(flux_v_map[repeat.item])
+                            %} {% set target_flux_v =
+                            states('input_select.clim_flux_vertical') %} {{
+                            current_mode != target_mode or current_temp !=
+                            target_temp or current_fan != target_fan or
+                            current_flux_h != target_flux_h or current_flux_v !=
+                            target_flux_v }}
+                      sequence:
+                        - target:
+                            entity_id: "{{ repeat.item }}"
+                          data:
+                            hvac_mode: "{{ states('input_select.clim_mode_auto') }}"
+                          action: climate.set_hvac_mode
+                        - target:
+                            entity_id: "{{ repeat.item }}"
+                          data:
+                            temperature: >-
+                              {{ states('input_number.chauffage_temp_eco') |
+                              float(19) }}
+                          action: climate.set_temperature
+                        - target:
+                            entity_id: "{{ repeat.item }}"
+                          data:
+                            fan_mode: "{{ states('input_select.clim_fan_mode') }}"
+                          action: climate.set_fan_mode
+                        - target:
+                            entity_id: "{{ flux_h_map[repeat.item] }}"
+                          data:
+                            option: "{{ states('input_select.clim_flux_horizontal') }}"
+                          action: select.select_option
+                        - target:
+                            entity_id: "{{ flux_v_map[repeat.item] }}"
+                          data:
+                            option: "{{ states('input_select.clim_flux_vertical') }}"
+                          action: select.select_option
+      - conditions:
+          - condition: trigger
+            id: stop_all
+        sequence:
+          - repeat:
+              for_each: "{{ active_devices }}"
+              sequence:
+                - choose:
+                    - conditions:
+                        - condition: template
+                          value_template: >
+                            {{ states(repeat.item) in ['heat', 'cool', 'dry',
+                            'fan_only', 'auto'] }}
+                      sequence:
+                        - target:
+                            entity_id: "{{ repeat.item }}"
+                          data:
+                            hvac_mode: "off"
+                          action: climate.set_hvac_mode
+      - conditions:
+          - condition: or
+            conditions:
+              - condition: trigger
+                id: temp_changed
+              - condition: trigger
+                id: settings_changed
+              - condition: trigger
+                id: seuil_changed
+              - condition: trigger
+                id: month_changed
+              - condition: trigger
+                id: horaire_changed
+        sequence:
+          - repeat:
+              for_each: "{{ active_devices }}"
+              sequence:
+                - choose:
+                    - conditions:
+                        - condition: template
+                          value_template: >
+                            {% set production =
+                            states('sensor.compteur_electricite_power_a') |
+                            float(0) %} {% set seuil =
+                            states('input_number.seuil_production_haute') |
+                            float(1.2) %} {{ production > seuil }}
+                        - condition: template
+                          value_template: "{{ states(repeat.item) != 'off' }}"
+                      sequence:
+                        - choose:
+                            - conditions:
+                                - condition: template
+                                  value_template: >
+                                    {% set current_temp =
+                                    state_attr(repeat.item, 'temperature') |
+                                    float(0) %} {% set target_temp =
+                                    states('input_number.chauffage_temp_confort')
+                                    | float(24) %} {% set current_fan =
+                                    state_attr(repeat.item, 'fan_mode') %} {%
+                                    set target_fan =
+                                    states('input_select.clim_fan_mode') %} {%
+                                    set current_mode = states(repeat.item) %} {%
+                                    set target_mode =
+                                    states('input_select.clim_mode_auto') %} {%
+                                    set current_flux_h =
+                                    states(flux_h_map[repeat.item]) %} {% set
+                                    target_flux_h =
+                                    states('input_select.clim_flux_horizontal')
+                                    %} {% set current_flux_v =
+                                    states(flux_v_map[repeat.item]) %} {% set
+                                    target_flux_v =
+                                    states('input_select.clim_flux_vertical') %}
+                                    {{ current_temp != target_temp or
+                                    current_fan != target_fan or current_mode !=
+                                    target_mode or current_flux_h !=
+                                    target_flux_h or current_flux_v !=
+                                    target_flux_v }}
+                              sequence:
+                                - choose:
+                                    - conditions:
+                                        - condition: template
+                                          value_template: >
+                                            {{ states(repeat.item) !=
+                                            states('input_select.clim_mode_auto') }}
+                                      sequence:
+                                        - target:
+                                            entity_id: "{{ repeat.item }}"
+                                          data:
+                                            hvac_mode: >-
+                                              {{ states('input_select.clim_mode_auto')
+                                              }}
+                                          action: climate.set_hvac_mode
+                                - choose:
+                                    - conditions:
+                                        - condition: template
+                                          value_template: >
+                                            {% set current_temp =
+                                            state_attr(repeat.item, 'temperature') |
+                                            float(0) %} {% set target_temp =
+                                            states('input_number.chauffage_temp_confort')
+                                            | float(24) %} {{ current_temp !=
+                                            target_temp }}
+                                      sequence:
+                                        - target:
+                                            entity_id: "{{ repeat.item }}"
+                                          data:
+                                            temperature: >-
+                                              {{
+                                              states('input_number.chauffage_temp_confort')
+                                              | float(24) }}
+                                          action: climate.set_temperature
+                                - choose:
+                                    - conditions:
+                                        - condition: template
+                                          value_template: >
+                                            {% set current_fan =
+                                            state_attr(repeat.item, 'fan_mode') %}
+                                            {% set target_fan =
+                                            states('input_select.clim_fan_mode') %}
+                                            {{ current_fan != target_fan }}
+                                      sequence:
+                                        - target:
+                                            entity_id: "{{ repeat.item }}"
+                                          data:
+                                            fan_mode: >-
+                                              {{ states('input_select.clim_fan_mode')
+                                              }}
+                                          action: climate.set_fan_mode
+                                - choose:
+                                    - conditions:
+                                        - condition: template
+                                          value_template: >
+                                            {{ states(flux_h_map[repeat.item]) !=
+                                            states('input_select.clim_flux_horizontal')
+                                            }}
+                                      sequence:
+                                        - target:
+                                            entity_id: "{{ flux_h_map[repeat.item] }}"
+                                          data:
+                                            option: >-
+                                              {{
+                                              states('input_select.clim_flux_horizontal')
+                                              }}
+                                          action: select.select_option
+                                - choose:
+                                    - conditions:
+                                        - condition: template
+                                          value_template: >
+                                            {{ states(flux_v_map[repeat.item]) !=
+                                            states('input_select.clim_flux_vertical')
+                                            }}
+                                      sequence:
+                                        - target:
+                                            entity_id: "{{ flux_v_map[repeat.item] }}"
+                                          data:
+                                            option: >-
+                                              {{
+                                              states('input_select.clim_flux_vertical')
+                                              }}
+                                          action: select.select_option
+                    - conditions:
+                        - condition: template
+                          value_template: >
+                            {% set production =
+                            states('sensor.compteur_electricite_power_a') |
+                            float(0) %} {% set seuil =
+                            states('input_number.seuil_production_basse') |
+                            float(1.0) %} {{ production < seuil }}
+                        - condition: template
+                          value_template: "{{ states(repeat.item) != 'off' }}"
+                      sequence:
+                        - choose:
+                            - conditions:
+                                - condition: template
+                                  value_template: >
+                                    {% set current_temp =
+                                    state_attr(repeat.item, 'temperature') |
+                                    float(0) %} {% set target_temp =
+                                    states('input_number.chauffage_temp_eco') |
+                                    float(19) %} {% set current_fan =
+                                    state_attr(repeat.item, 'fan_mode') %} {%
+                                    set target_fan =
+                                    states('input_select.clim_fan_mode') %} {%
+                                    set current_mode = states(repeat.item) %} {%
+                                    set target_mode =
+                                    states('input_select.clim_mode_auto') %} {%
+                                    set current_flux_h =
+                                    states(flux_h_map[repeat.item]) %} {% set
+                                    target_flux_h =
+                                    states('input_select.clim_flux_horizontal')
+                                    %} {% set current_flux_v =
+                                    states(flux_v_map[repeat.item]) %} {% set
+                                    target_flux_v =
+                                    states('input_select.clim_flux_vertical') %}
+                                    {{ current_temp != target_temp or
+                                    current_fan != target_fan or current_mode !=
+                                    target_mode or current_flux_h !=
+                                    target_flux_h or current_flux_v !=
+                                    target_flux_v }}
+                              sequence:
+                                - choose:
+                                    - conditions:
+                                        - condition: template
+                                          value_template: >
+                                            {{ states(repeat.item) !=
+                                            states('input_select.clim_mode_auto') }}
+                                      sequence:
+                                        - target:
+                                            entity_id: "{{ repeat.item }}"
+                                          data:
+                                            hvac_mode: >-
+                                              {{ states('input_select.clim_mode_auto')
+                                              }}
+                                          action: climate.set_hvac_mode
+                                - choose:
+                                    - conditions:
+                                        - condition: template
+                                          value_template: >
+                                            {% set current_temp =
+                                            state_attr(repeat.item, 'temperature') |
+                                            float(0) %} {% set target_temp =
+                                            states('input_number.chauffage_temp_eco')
+                                            | float(19) %} {{ current_temp !=
+                                            target_temp }}
+                                      sequence:
+                                        - target:
+                                            entity_id: "{{ repeat.item }}"
+                                          data:
+                                            temperature: >-
+                                              {{
+                                              states('input_number.chauffage_temp_eco')
+                                              | float(19) }}
+                                          action: climate.set_temperature
+                                - choose:
+                                    - conditions:
+                                        - condition: template
+                                          value_template: >
+                                            {% set current_fan =
+                                            state_attr(repeat.item, 'fan_mode') %}
+                                            {% set target_fan =
+                                            states('input_select.clim_fan_mode') %}
+                                            {{ current_fan != target_fan }}
+                                      sequence:
+                                        - target:
+                                            entity_id: "{{ repeat.item }}"
+                                          data:
+                                            fan_mode: >-
+                                              {{ states('input_select.clim_fan_mode')
+                                              }}
+                                          action: climate.set_fan_mode
+                                - choose:
+                                    - conditions:
+                                        - condition: template
+                                          value_template: >
+                                            {{ states(flux_h_map[repeat.item]) !=
+                                            states('input_select.clim_flux_horizontal')
+                                            }}
+                                      sequence:
+                                        - target:
+                                            entity_id: "{{ flux_h_map[repeat.item] }}"
+                                          data:
+                                            option: >-
+                                              {{
+                                              states('input_select.clim_flux_horizontal')
+                                              }}
+                                          action: select.select_option
+                                - choose:
+                                    - conditions:
+                                        - condition: template
+                                          value_template: >
+                                            {{ states(flux_v_map[repeat.item]) !=
+                                            states('input_select.clim_flux_vertical')
+                                            }}
+                                      sequence:
+                                        - target:
+                                            entity_id: "{{ flux_v_map[repeat.item] }}"
+                                          data:
+                                            option: >-
+                                              {{
+                                              states('input_select.clim_flux_vertical')
+                                              }}
+                                          action: select.select_option
+                    - conditions:
+                        - condition: template
+                          value_template: >
+                            {% set production =
+                            states('sensor.compteur_electricite_power_a') |
+                            float(0) %} {% set seuil_haute =
+                            states('input_number.seuil_production_haute') |
+                            float(1.2) %} {% set seuil_basse =
+                            states('input_number.seuil_production_basse') |
+                            float(1.0) %} {{ production >= seuil_basse and
+                            production <= seuil_haute }}
+                        - condition: template
+                          value_template: "{{ states(repeat.item) != 'off' }}"
+                      sequence:
+                        - choose:
+                            - conditions:
+                                - condition: template
+                                  value_template: >
+                                    {% set current_temp =
+                                    state_attr(repeat.item, 'temperature') |
+                                    float(0) %} {% set target_temp =
+                                    states('input_number.chauffage_temp_eco') |
+                                    float(19) %} {% set current_fan =
+                                    state_attr(repeat.item, 'fan_mode') %} {%
+                                    set target_fan =
+                                    states('input_select.clim_fan_mode') %} {%
+                                    set current_mode = states(repeat.item) %} {%
+                                    set target_mode =
+                                    states('input_select.clim_mode_auto') %} {%
+                                    set current_flux_h =
+                                    states(flux_h_map[repeat.item]) %} {% set
+                                    target_flux_h =
+                                    states('input_select.clim_flux_horizontal')
+                                    %} {% set current_flux_v =
+                                    states(flux_v_map[repeat.item]) %} {% set
+                                    target_flux_v =
+                                    states('input_select.clim_flux_vertical') %}
+                                    {{ current_temp != target_temp or
+                                    current_fan != target_fan or current_mode !=
+                                    target_mode or current_flux_h !=
+                                    target_flux_h or current_flux_v !=
+                                    target_flux_v }}
+                              sequence:
+                                - choose:
+                                    - conditions:
+                                        - condition: template
+                                          value_template: >
+                                            {{ states(repeat.item) !=
+                                            states('input_select.clim_mode_auto') }}
+                                      sequence:
+                                        - target:
+                                            entity_id: "{{ repeat.item }}"
+                                          data:
+                                            hvac_mode: >-
+                                              {{ states('input_select.clim_mode_auto')
+                                              }}
+                                          action: climate.set_hvac_mode
+                                - choose:
+                                    - conditions:
+                                        - condition: template
+                                          value_template: >
+                                            {% set current_temp =
+                                            state_attr(repeat.item, 'temperature') |
+                                            float(0) %} {% set target_temp =
+                                            states('input_number.chauffage_temp_eco')
+                                            | float(19) %} {{ current_temp !=
+                                            target_temp }}
+                                      sequence:
+                                        - target:
+                                            entity_id: "{{ repeat.item }}"
+                                          data:
+                                            temperature: >-
+                                              {{
+                                              states('input_number.chauffage_temp_eco')
+                                              | float(19) }}
+                                          action: climate.set_temperature
+                                - choose:
+                                    - conditions:
+                                        - condition: template
+                                          value_template: >
+                                            {% set current_fan =
+                                            state_attr(repeat.item, 'fan_mode') %}
+                                            {% set target_fan =
+                                            states('input_select.clim_fan_mode') %}
+                                            {{ current_fan != target_fan }}
+                                      sequence:
+                                        - target:
+                                            entity_id: "{{ repeat.item }}"
+                                          data:
+                                            fan_mode: >-
+                                              {{ states('input_select.clim_fan_mode')
+                                              }}
+                                          action: climate.set_fan_mode
+                                - choose:
+                                    - conditions:
+                                        - condition: template
+                                          value_template: >
+                                            {{ states(flux_h_map[repeat.item]) !=
+                                            states('input_select.clim_flux_horizontal')
+                                            }}
+                                      sequence:
+                                        - target:
+                                            entity_id: "{{ flux_h_map[repeat.item] }}"
+                                          data:
+                                            option: >-
+                                              {{
+                                              states('input_select.clim_flux_horizontal')
+                                              }}
+                                          action: select.select_option
+                                - choose:
+                                    - conditions:
+                                        - condition: template
+                                          value_template: >
+                                            {{ states(flux_v_map[repeat.item]) !=
+                                            states('input_select.clim_flux_vertical')
+                                            }}
+                                      sequence:
+                                        - target:
+                                            entity_id: "{{ flux_v_map[repeat.item] }}"
+                                          data:
+                                            option: >-
+                                              {{
+                                              states('input_select.clim_flux_vertical')
+                                              }}
+                                          action: select.select_option
+      - conditions:
+          - condition: or
+            conditions:
+              - condition: trigger
+                id: check_conditions
+              - condition: trigger
+                id: solar_changed
+          - condition: template
+            value_template: >
+              {% if states('sensor.tarif_tempo_couleur_aujourd_hui') == 'rouge'
+              %}
+                {% set current_time = now().hour * 60 + now().minute %}
+                {% set start_str = states('input_datetime.heure_start_rouge_tempo')[0:5] %}
+                {% set start_hour = start_str.split(':')[0] | int %}
+                {% set start_minute = start_str.split(':')[1] | int %}
+                {% set start_time = start_hour * 60 + start_minute - 2 %}
+                {% set stop_str = states('input_datetime.heure_stop_rouge_matin')[0:5] %}
+                {% set stop_hour = stop_str.split(':')[0] | int %}
+                {% set stop_minute = stop_str.split(':')[1] | int %}
+                {% set stop_time = stop_hour * 60 + stop_minute + 2 %}
+                {{ not (current_time >= start_time and current_time <= stop_time) }}
+              {% else %}
+                true
+              {% endif %}
+          - condition: template
+            value_template: >
+              {% set hour = now().hour %} {% set minute = now().minute %} {% set
+              current_time = hour * 60 + minute %} {% set start_time_str =
+              states('input_datetime.heure_start_rouge_tempo')[0:5] %} {% set
+              start_hour = start_time_str.split(':')[0] | int %} {% set
+              start_minute = start_time_str.split(':')[1] | int %} {% set
+              start_time = start_hour * 60 + start_minute %} {% set is_daytime =
+              current_time >= start_time and states('sun.sun') ==
+              'above_horizon' %} {{ is_daytime }}
+        sequence:
+          - choose:
+              - conditions:
+                  - condition: state
+                    entity_id: sensor.tarif_tempo_couleur_aujourd_hui
+                    state: rouge
+                  - condition: template
+                    value_template: >
+                      {% set current_time = now().strftime('%H:%M:00') %} {% set
+                      stop_time =
+                      states('input_datetime.heure_stop_rouge_matin')[0:8] %} {{
+                      current_time >= stop_time }}
+                sequence:
+                  - repeat:
+                      for_each: "{{ active_devices }}"
+                      sequence:
+                        - choose:
+                            - conditions:
+                                - condition: template
+                                  value_template: >
+                                    {% set production =
+                                    states('sensor.compteur_electricite_power_a')
+                                    | float(0) %} {% set seuil =
+                                    states('input_number.seuil_production_haute')
+                                    | float(1.2) %} {{ production > seuil }}
+                              sequence:
+                                - choose:
+                                    - conditions:
+                                        - condition: template
+                                          value_template: "{{ states(repeat.item) == 'off' }}"
+                                      sequence:
+                                        - target:
+                                            entity_id: "{{ repeat.item }}"
+                                          data:
+                                            hvac_mode: >-
+                                              {{ states('input_select.clim_mode_auto')
+                                              }}
+                                          action: climate.set_hvac_mode
+                                        - target:
+                                            entity_id: "{{ repeat.item }}"
+                                          data:
+                                            temperature: >-
+                                              {{
+                                              states('input_number.chauffage_temp_confort')
+                                              | float(24) }}
+                                          action: climate.set_temperature
+                                        - target:
+                                            entity_id: "{{ repeat.item }}"
+                                          data:
+                                            fan_mode: >-
+                                              {{ states('input_select.clim_fan_mode')
+                                              }}
+                                          action: climate.set_fan_mode
+                                        - target:
+                                            entity_id: "{{ flux_h_map[repeat.item] }}"
+                                          data:
+                                            option: >-
+                                              {{
+                                              states('input_select.clim_flux_horizontal')
+                                              }}
+                                          action: select.select_option
+                                        - target:
+                                            entity_id: "{{ flux_v_map[repeat.item] }}"
+                                          data:
+                                            option: >-
+                                              {{
+                                              states('input_select.clim_flux_vertical')
+                                              }}
+                                          action: select.select_option
+                                    - conditions:
+                                        - condition: template
+                                          value_template: "{{ states(repeat.item) != 'off' }}"
+                                      sequence:
+                                        - choose:
+                                            - conditions:
+                                                - condition: template
+                                                  value_template: >
+                                                    {% set current_temp =
+                                                    state_attr(repeat.item, 'temperature') |
+                                                    float(0) %} {% set target_temp =
+                                                    states('input_number.chauffage_temp_confort')
+                                                    | float(24) %} {% set current_fan =
+                                                    state_attr(repeat.item, 'fan_mode') %}
+                                                    {% set target_fan =
+                                                    states('input_select.clim_fan_mode') %}
+                                                    {% set current_mode =
+                                                    states(repeat.item) %} {% set
+                                                    target_mode =
+                                                    states('input_select.clim_mode_auto') %}
+                                                    {% set current_flux_h =
+                                                    states(flux_h_map[repeat.item]) %} {%
+                                                    set target_flux_h =
+                                                    states('input_select.clim_flux_horizontal')
+                                                    %} {% set current_flux_v =
+                                                    states(flux_v_map[repeat.item]) %} {%
+                                                    set target_flux_v =
+                                                    states('input_select.clim_flux_vertical')
+                                                    %} {{ current_temp != target_temp or
+                                                    current_fan != target_fan or
+                                                    current_mode != target_mode or
+                                                    current_flux_h != target_flux_h or
+                                                    current_flux_v != target_flux_v }}
+                                              sequence:
+                                                - choose:
+                                                    - conditions:
+                                                        - condition: template
+                                                          value_template: >
+                                                            {{ states(repeat.item) !=
+                                                            states('input_select.clim_mode_auto') }}
+                                                      sequence:
+                                                        - target:
+                                                            entity_id: "{{ repeat.item }}"
+                                                          data:
+                                                            hvac_mode: >-
+                                                              {{ states('input_select.clim_mode_auto')
+                                                              }}
+                                                          action: climate.set_hvac_mode
+                                                - choose:
+                                                    - conditions:
+                                                        - condition: template
+                                                          value_template: >
+                                                            {% set current_temp =
+                                                            state_attr(repeat.item, 'temperature') |
+                                                            float(0) %} {% set target_temp =
+                                                            states('input_number.chauffage_temp_confort')
+                                                            | float(24) %} {{ current_temp !=
+                                                            target_temp }}
+                                                      sequence:
+                                                        - target:
+                                                            entity_id: "{{ repeat.item }}"
+                                                          data:
+                                                            temperature: >-
+                                                              {{
+                                                              states('input_number.chauffage_temp_confort')
+                                                              | float(24) }}
+                                                          action: climate.set_temperature
+                                                - choose:
+                                                    - conditions:
+                                                        - condition: template
+                                                          value_template: >
+                                                            {% set current_fan =
+                                                            state_attr(repeat.item, 'fan_mode') %}
+                                                            {% set target_fan =
+                                                            states('input_select.clim_fan_mode') %}
+                                                            {{ current_fan != target_fan }}
+                                                      sequence:
+                                                        - target:
+                                                            entity_id: "{{ repeat.item }}"
+                                                          data:
+                                                            fan_mode: >-
+                                                              {{ states('input_select.clim_fan_mode')
+                                                              }}
+                                                          action: climate.set_fan_mode
+                                                - choose:
+                                                    - conditions:
+                                                        - condition: template
+                                                          value_template: >
+                                                            {{ states(flux_h_map[repeat.item]) !=
+                                                            states('input_select.clim_flux_horizontal')
+                                                            }}
+                                                      sequence:
+                                                        - target:
+                                                            entity_id: "{{ flux_h_map[repeat.item] }}"
+                                                          data:
+                                                            option: >-
+                                                              {{
+                                                              states('input_select.clim_flux_horizontal')
+                                                              }}
+                                                          action: select.select_option
+                                                - choose:
+                                                    - conditions:
+                                                        - condition: template
+                                                          value_template: >
+                                                            {{ states(flux_v_map[repeat.item]) !=
+                                                            states('input_select.clim_flux_vertical')
+                                                            }}
+                                                      sequence:
+                                                        - target:
+                                                            entity_id: "{{ flux_v_map[repeat.item] }}"
+                                                          data:
+                                                            option: >-
+                                                              {{
+                                                              states('input_select.clim_flux_vertical')
+                                                              }}
+                                                          action: select.select_option
+                            - conditions:
+                                - condition: template
+                                  value_template: >
+                                    {% set production =
+                                    states('sensor.compteur_electricite_power_a')
+                                    | float(0) %} {% set seuil =
+                                    states('input_number.seuil_production_basse')
+                                    | float(1.0) %} {{ production < seuil }}
+                                - condition: template
+                                  value_template: "{{ states(repeat.item) != 'off' }}"
+                              sequence:
+                                - target:
+                                    entity_id: "{{ repeat.item }}"
+                                  data:
+                                    hvac_mode: "off"
+                                  action: climate.set_hvac_mode
+              - conditions:
+                  - condition: template
+                    value_template: >
+                      {{ states('sensor.tarif_tempo_couleur_aujourd_hui') !=
+                      'rouge' }}
+                  - condition: template
+                    value_template: >
+                      {% set current_time = now().strftime('%H:%M:00') %} {% set
+                      start_time =
+                      states('input_datetime.heure_start_normal')[0:8] %} {{
+                      current_time >= start_time }}
+                sequence:
+                  - repeat:
+                      for_each: "{{ active_devices }}"
+                      sequence:
+                        - choose:
+                            - conditions:
+                                - condition: template
+                                  value_template: >
+                                    {% set production =
+                                    states('sensor.compteur_electricite_power_a')
+                                    | float(0) %} {% set seuil =
+                                    states('input_number.seuil_production_haute')
+                                    | float(1.2) %} {{ production > seuil }}
+                                - condition: template
+                                  value_template: "{{ states(repeat.item) != 'off' }}"
+                              sequence:
+                                - choose:
+                                    - conditions:
+                                        - condition: template
+                                          value_template: >
+                                            {% set current_temp =
+                                            state_attr(repeat.item, 'temperature') |
+                                            float(0) %} {% set target_temp =
+                                            states('input_number.chauffage_temp_confort')
+                                            | float(24) %} {% set current_fan =
+                                            state_attr(repeat.item, 'fan_mode') %}
+                                            {% set target_fan =
+                                            states('input_select.clim_fan_mode') %}
+                                            {% set current_mode =
+                                            states(repeat.item) %} {% set
+                                            target_mode =
+                                            states('input_select.clim_mode_auto') %}
+                                            {% set current_flux_h =
+                                            states(flux_h_map[repeat.item]) %} {%
+                                            set target_flux_h =
+                                            states('input_select.clim_flux_horizontal')
+                                            %} {% set current_flux_v =
+                                            states(flux_v_map[repeat.item]) %} {%
+                                            set target_flux_v =
+                                            states('input_select.clim_flux_vertical')
+                                            %} {{ current_temp != target_temp or
+                                            current_fan != target_fan or
+                                            current_mode != target_mode or
+                                            current_flux_h != target_flux_h or
+                                            current_flux_v != target_flux_v }}
+                                      sequence:
+                                        - choose:
+                                            - conditions:
+                                                - condition: template
+                                                  value_template: >
+                                                    {{ states(repeat.item) !=
+                                                    states('input_select.clim_mode_auto') }}
+                                              sequence:
+                                                - target:
+                                                    entity_id: "{{ repeat.item }}"
+                                                  data:
+                                                    hvac_mode: >-
+                                                      {{ states('input_select.clim_mode_auto')
+                                                      }}
+                                                  action: climate.set_hvac_mode
+                                        - choose:
+                                            - conditions:
+                                                - condition: template
+                                                  value_template: >
+                                                    {% set current_temp =
+                                                    state_attr(repeat.item, 'temperature') |
+                                                    float(0) %} {% set target_temp =
+                                                    states('input_number.chauffage_temp_confort')
+                                                    | float(24) %} {{ current_temp !=
+                                                    target_temp }}
+                                              sequence:
+                                                - target:
+                                                    entity_id: "{{ repeat.item }}"
+                                                  data:
+                                                    temperature: >-
+                                                      {{
+                                                      states('input_number.chauffage_temp_confort')
+                                                      | float(24) }}
+                                                  action: climate.set_temperature
+                                        - choose:
+                                            - conditions:
+                                                - condition: template
+                                                  value_template: >
+                                                    {% set current_fan =
+                                                    state_attr(repeat.item, 'fan_mode') %}
+                                                    {% set target_fan =
+                                                    states('input_select.clim_fan_mode') %}
+                                                    {{ current_fan != target_fan }}
+                                              sequence:
+                                                - target:
+                                                    entity_id: "{{ repeat.item }}"
+                                                  data:
+                                                    fan_mode: >-
+                                                      {{ states('input_select.clim_fan_mode')
+                                                      }}
+                                                  action: climate.set_fan_mode
+                                        - choose:
+                                            - conditions:
+                                                - condition: template
+                                                  value_template: >
+                                                    {{ states(flux_h_map[repeat.item]) !=
+                                                    states('input_select.clim_flux_horizontal')
+                                                    }}
+                                              sequence:
+                                                - target:
+                                                    entity_id: "{{ flux_h_map[repeat.item] }}"
+                                                  data:
+                                                    option: >-
+                                                      {{
+                                                      states('input_select.clim_flux_horizontal')
+                                                      }}
+                                                  action: select.select_option
+                                        - choose:
+                                            - conditions:
+                                                - condition: template
+                                                  value_template: >
+                                                    {{ states(flux_v_map[repeat.item]) !=
+                                                    states('input_select.clim_flux_vertical')
+                                                    }}
+                                              sequence:
+                                                - target:
+                                                    entity_id: "{{ flux_v_map[repeat.item] }}"
+                                                  data:
+                                                    option: >-
+                                                      {{
+                                                      states('input_select.clim_flux_vertical')
+                                                      }}
+                                                  action: select.select_option
+                            - conditions:
+                                - condition: template
+                                  value_template: >
+                                    {% set production =
+                                    states('sensor.compteur_electricite_power_a')
+                                    | float(0) %} {% set seuil =
+                                    states('input_number.seuil_production_basse')
+                                    | float(1.0) %} {{ production < seuil }}
+                                - condition: template
+                                  value_template: "{{ states(repeat.item) != 'off' }}"
+                              sequence:
+                                - choose:
+                                    - conditions:
+                                        - condition: template
+                                          value_template: >
+                                            {% set current_temp =
+                                            state_attr(repeat.item, 'temperature') |
+                                            float(0) %} {% set target_temp =
+                                            states('input_number.chauffage_temp_eco')
+                                            | float(19) %} {% set current_fan =
+                                            state_attr(repeat.item, 'fan_mode') %}
+                                            {% set target_fan =
+                                            states('input_select.clim_fan_mode') %}
+                                            {% set current_mode =
+                                            states(repeat.item) %} {% set
+                                            target_mode =
+                                            states('input_select.clim_mode_auto') %}
+                                            {% set current_flux_h =
+                                            states(flux_h_map[repeat.item]) %} {%
+                                            set target_flux_h =
+                                            states('input_select.clim_flux_horizontal')
+                                            %} {% set current_flux_v =
+                                            states(flux_v_map[repeat.item]) %} {%
+                                            set target_flux_v =
+                                            states('input_select.clim_flux_vertical')
+                                            %} {{ current_temp != target_temp or
+                                            current_fan != target_fan or
+                                            current_mode != target_mode or
+                                            current_flux_h != target_flux_h or
+                                            current_flux_v != target_flux_v }}
+                                      sequence:
+                                        - choose:
+                                            - conditions:
+                                                - condition: template
+                                                  value_template: >
+                                                    {{ states(repeat.item) !=
+                                                    states('input_select.clim_mode_auto') }}
+                                              sequence:
+                                                - target:
+                                                    entity_id: "{{ repeat.item }}"
+                                                  data:
+                                                    hvac_mode: >-
+                                                      {{ states('input_select.clim_mode_auto')
+                                                      }}
+                                                  action: climate.set_hvac_mode
+                                        - choose:
+                                            - conditions:
+                                                - condition: template
+                                                  value_template: >
+                                                    {% set current_temp =
+                                                    state_attr(repeat.item, 'temperature') |
+                                                    float(0) %} {% set target_temp =
+                                                    states('input_number.chauffage_temp_eco')
+                                                    | float(19) %} {{ current_temp !=
+                                                    target_temp }}
+                                              sequence:
+                                                - target:
+                                                    entity_id: "{{ repeat.item }}"
+                                                  data:
+                                                    temperature: >-
+                                                      {{
+                                                      states('input_number.chauffage_temp_eco')
+                                                      | float(19) }}
+                                                  action: climate.set_temperature
+                                        - choose:
+                                            - conditions:
+                                                - condition: template
+                                                  value_template: >
+                                                    {% set current_fan =
+                                                    state_attr(repeat.item, 'fan_mode') %}
+                                                    {% set target_fan =
+                                                    states('input_select.clim_fan_mode') %}
+                                                    {{ current_fan != target_fan }}
+                                              sequence:
+                                                - target:
+                                                    entity_id: "{{ repeat.item }}"
+                                                  data:
+                                                    fan_mode: >-
+                                                      {{ states('input_select.clim_fan_mode')
+                                                      }}
+                                                  action: climate.set_fan_mode
+                                        - choose:
+                                            - conditions:
+                                                - condition: template
+                                                  value_template: >
+                                                    {{ states(flux_h_map[repeat.item]) !=
+                                                    states('input_select.clim_flux_horizontal')
+                                                    }}
+                                              sequence:
+                                                - target:
+                                                    entity_id: "{{ flux_h_map[repeat.item] }}"
+                                                  data:
+                                                    option: >-
+                                                      {{
+                                                      states('input_select.clim_flux_horizontal')
+                                                      }}
+                                                  action: select.select_option
+                                        - choose:
+                                            - conditions:
+                                                - condition: template
+                                                  value_template: >
+                                                    {{ states(flux_v_map[repeat.item]) !=
+                                                    states('input_select.clim_flux_vertical')
+                                                    }}
+                                              sequence:
+                                                - target:
+                                                    entity_id: "{{ flux_v_map[repeat.item] }}"
+                                                  data:
+                                                    option: >-
+                                                      {{
+                                                      states('input_select.clim_flux_vertical')
+                                                      }}
+                                                  action: select.select_option
+variables:
+  active_devices: >
+    {% set devices = [] %} {% if states('input_boolean.clim_salon_active') ==
+    'on' %}
+      {% set devices = devices + ['climate.clim_salon_local'] %}
+    {% endif %} {% if states('input_boolean.clim_cesar_active') == 'on' %}
+      {% set devices = devices + ['climate.clim_cesar_local'] %}
+    {% endif %} {% if states('input_boolean.clim_chambre_bas_active') == 'on' %}
+      {% set devices = devices + ['climate.clim_chambre_bas_2'] %}
+    {% endif %} {% if states('input_boolean.clim_amis_active') == 'on' %}
+      {% set devices = devices + ['climate.clim_amis_2'] %}
+    {% endif %} {% if states('input_boolean.clim_principale_active') == 'on' %}
+      {% set devices = devices + ['climate.clim_chambre_principale'] %}
+    {% endif %} {{ devices }}
+  flux_h_map: |
+    {{ {
+      'climate.clim_salon_local': 'select.flux_dair_horizontal',
+      'climate.clim_cesar_local': 'select.flux_dair_horizontal_2',
+      'climate.clim_chambre_bas_2': 'select.flux_dair_horizontal_3',
+      'climate.clim_amis_2': 'select.flux_dair_horizontal_4',
+      'climate.clim_chambre_principale': 'select.flux_dair_horizontal_5'
+    } }}
+  flux_v_map: |
+    {{ {
+      'climate.clim_salon_local': 'select.flux_dair_vertical',
+      'climate.clim_cesar_local': 'select.flux_dair_vertical_2',
+      'climate.clim_chambre_bas_2': 'select.flux_dair_vertical_3',
+      'climate.clim_amis_2': 'select.flux_dair_vertical_4',
+      'climate.clim_chambre_principale': 'select.flux_dair_vertical_5'
+    } }}
+mode: single
