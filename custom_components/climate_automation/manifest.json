@@ -1,0 +1,13 @@
+{
+  "domain": "climate_automation",
+  "name": "Climate Automation",
+  "version": "1.0.0",
+  "documentation": "https://github.com/FigurinePanda43/ClimateAutomation",
+  "issue_tracker": "https://github.com/FigurinePanda43/ClimateAutomation/issues",
+  "dependencies": [],
+  "codeowners": ["@FigurinePanda43"],
+  "requirements": [],
+  "iot_class": "calculated",
+  "integration_type": "hub",
+  "config_flow": true
+}
