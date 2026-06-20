@@ -206,13 +206,9 @@ class ClimateAutomationCoordinator(DataUpdateCoordinator[dict[str, DesiredState]
         return dt_util.as_local(sunset) - offset
 
     # ---------------------------------------------------------- décision cœur
-    def compute_desired(
-        self, zone: ZoneConfig, clim: str, now: datetime
-    ) -> DesiredState:
-        """Calcule l'état désiré d'une clim selon toutes les règles de la zone."""
+    def _compute_base(self, zone: ZoneConfig, clim: str, now: datetime) -> DesiredState:
+        """Calcule l'état désiré « normal » (mois/horaire/Tempo/solaire), sans hors-gel."""
         s = self.settings[zone.key]
-        flux_h = s.flux_horizontal
-        flux_v = s.flux_vertical
 
         def on_state(computed: str, temperature: float) -> DesiredState:
             return DesiredState(
@@ -220,29 +216,20 @@ class ClimateAutomationCoordinator(DataUpdateCoordinator[dict[str, DesiredState]
                 hvac_mode=s.hvac_mode,
                 temperature=temperature,
                 fan_mode=s.fan_mode,
-                flux_horizontal=flux_h,
-                flux_vertical=flux_v,
+                flux_horizontal=s.flux_horizontal,
+                flux_vertical=s.flux_vertical,
             )
 
         off_state = DesiredState(computed=COMPUTED_OFF, hvac_mode=HVAC_OFF)
 
-        # 0. Clim désactivée manuellement -> off.
-        if not self.clim_enabled.get(clim, True):
-            return DesiredState(computed=COMPUTED_DISABLED, hvac_mode=HVAC_OFF)
-
-        # 1. Hors-gel (priorité absolue, même hors saison / hors plage).
-        room_temp = self._get_zone_temperature(zone)
-        if room_temp is not None and room_temp < s.hors_gel:
-            return on_state(COMPUTED_HORS_GEL, s.hors_gel)
-
-        # 2. Mois désactivé -> off.
+        # 1. Mois désactivé -> off.
         if now.month not in zone.active_months:
             return off_state
 
         tempo = self._get_tempo()
         current = now.time()
 
-        # 3. Plage horaire. Le début dépend de la couleur Tempo.
+        # 2. Plage horaire. Le début dépend de la couleur Tempo.
         start = s.heure_start_rouge if tempo == TEMPO_ROUGE else s.heure_start_normal
         if current < start:
             return off_state
@@ -250,11 +237,11 @@ class ClimateAutomationCoordinator(DataUpdateCoordinator[dict[str, DesiredState]
         if sunset_stop is not None and now >= sunset_stop:
             return off_state
 
-        # 4. Jour rouge, fenêtre matinale -> préchauffe ÉCO forcée.
+        # 3. Jour rouge, fenêtre matinale -> préchauffe ÉCO forcée.
         if tempo == TEMPO_ROUGE and current < s.heure_stop_rouge_matin:
             return on_state(COMPUTED_PRECHAUFFE_ROUGE, s.temp_eco)
 
-        # 5. Asservissement solaire (seuils propres à la zone).
+        # 4. Asservissement solaire (seuils propres à la zone).
         solar = self._get_solar()
         if solar is None:
             # Capteur indisponible : on ne tranche pas, on laisse l'état courant.
@@ -265,6 +252,44 @@ class ClimateAutomationCoordinator(DataUpdateCoordinator[dict[str, DesiredState]
             return on_state(COMPUTED_ECO, s.temp_eco)
         return off_state
 
+    def compute_desired(
+        self, zone: ZoneConfig, clim: str, now: datetime, zone_active: bool
+    ) -> DesiredState:
+        """Calcule l'état désiré d'une clim.
+
+        Le hors-gel est un *plancher* : il ne fait jamais baisser une consigne
+        déjà plus haute, et reste actif même si la zone ou la clim est
+        désactivée manuellement (sécurité du logement avant tout).
+        """
+        s = self.settings[zone.key]
+        clim_active = self.clim_enabled.get(clim, True)
+
+        room_temp = self._get_zone_temperature(zone)
+        hors_gel_triggered = room_temp is not None and room_temp < s.hors_gel
+
+        disabled = not clim_active or not zone_active
+        base = (
+            DesiredState(computed=COMPUTED_DISABLED, hvac_mode=HVAC_OFF)
+            if disabled
+            else self._compute_base(zone, clim, now)
+        )
+
+        if not hors_gel_triggered:
+            return base
+
+        if base.is_on and base.temperature is not None and base.temperature >= s.hors_gel:
+            # La consigne normale couvre déjà le plancher hors-gel.
+            return base
+
+        return DesiredState(
+            computed=COMPUTED_HORS_GEL,
+            hvac_mode=s.hvac_mode,
+            temperature=s.hors_gel,
+            fan_mode=s.fan_mode,
+            flux_horizontal=s.flux_horizontal,
+            flux_vertical=s.flux_vertical,
+        )
+
     # ----------------------------------------------------------- application
     async def _async_update_data(self) -> dict[str, DesiredState]:
         """Recalcule et applique l'état désiré de toutes les clims."""
@@ -272,18 +297,9 @@ class ClimateAutomationCoordinator(DataUpdateCoordinator[dict[str, DesiredState]
         result: dict[str, DesiredState] = {}
 
         for zone in self.zones.values():
-            if not self.settings[zone.key].active:
-                # Zone inactive : toutes ses clims sont éteintes.
-                for clim in zone.climates:
-                    desired = DesiredState(
-                        computed=COMPUTED_DISABLED, hvac_mode=HVAC_OFF
-                    )
-                    result[clim] = desired
-                    await self._async_apply(zone, clim, desired)
-                continue
-
+            zone_active = self.settings[zone.key].active
             for clim in zone.climates:
-                desired = self.compute_desired(zone, clim, now)
+                desired = self.compute_desired(zone, clim, now, zone_active)
                 result[clim] = desired
                 await self._async_apply(zone, clim, desired)
 
