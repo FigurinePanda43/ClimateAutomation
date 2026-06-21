@@ -1,0 +1,39 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "Climate Automation — Global sensors",
+        "description": "Select the sensors shared by all zones.",
+        "data": {
+          "solar_sensor": "Solar production sensor (kW)",
+          "tempo_sensor": "Tempo color sensor (RTE)"
+        }
+      },
+      "zone": {
+        "title": "Zone {zone} configuration",
+        "description": "Climate devices, temperature sensor and heating months for this zone.",
+        "data": {
+          "name": "Zone name",
+          "climates": "Zone climate devices",
+          "temp_sensor": "Zone temperature sensor (frost protection)",
+          "active_months": "Active heating months"
+        }
+      },
+      "flux": {
+        "title": "Air flow per climate device",
+        "description": "Map each climate device to its horizontal (__h) and vertical (__v) air flow select entities."
+      }
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Global sensors",
+        "data": {
+          "solar_sensor": "Solar production sensor (kW)",
+          "tempo_sensor": "Tempo color sensor (RTE)"
+        }
+      }
+    }
+  }
+}
