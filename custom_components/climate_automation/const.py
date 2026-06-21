@@ -65,10 +65,19 @@ DEFAULT_HEURE_START_NORMAL: Final = time(7, 0)
 DEFAULT_HEURE_STOP_ROUGE_MATIN: Final = time(9, 0)
 DEFAULT_DECALAGE_COUCHER: Final = time(0, 30)  # HH:MM avant le coucher
 
+# Consigne minimale physiquement acceptée par les climatiseurs. Toute commande
+# de température envoyée à une clim est bornée à cette valeur, quelle que soit
+# la consigne calculée (confort, éco ou hors-gel).
+DEVICE_MIN_TEMP_SETPOINT: Final = 16.0
+
 # Bornes des entités number.
-MIN_TEMP: Final = 5.0
+MIN_TEMP: Final = DEVICE_MIN_TEMP_SETPOINT
 MAX_TEMP: Final = 30.0
 TEMP_STEP: Final = 0.5
+# Le seuil hors-gel est comparé à un capteur de température réelle (pas envoyé
+# à la clim) : il peut donc être réglé sous la consigne minimale des appareils.
+MIN_HORS_GEL_THRESHOLD: Final = 0.0
+MAX_HORS_GEL_THRESHOLD: Final = 20.0
 MIN_SEUIL: Final = 0.0
 MAX_SEUIL: Final = 20.0
 SEUIL_STEP: Final = 0.1
@@ -78,6 +87,7 @@ MAX_ANTI_COURT_CYCLE: Final = 60.0
 # --- Identifiants des réglages « live » par zone -----------------------------
 # (utilisés pour construire les unique_id et le stockage runtime)
 SETTING_ACTIVE: Final = "active"
+SETTING_SOLAR_ONLY: Final = "solar_only"
 SETTING_TEMP_CONFORT: Final = "temp_confort"
 SETTING_TEMP_ECO: Final = "temp_eco"
 SETTING_SEUIL_HAUTE: Final = "seuil_haute"
