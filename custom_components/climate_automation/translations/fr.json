@@ -1,0 +1,39 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "Climate Automation — Capteurs globaux",
+        "description": "Sélectionnez les capteurs partagés par toutes les zones.",
+        "data": {
+          "solar_sensor": "Capteur de production solaire (kW)",
+          "tempo_sensor": "Capteur couleur Tempo (RTE)"
+        }
+      },
+      "zone": {
+        "title": "Configuration de la zone {zone}",
+        "description": "Climatiseurs rattachés, capteur de température et mois de chauffe de cette zone.",
+        "data": {
+          "name": "Nom de la zone",
+          "climates": "Climatiseurs de la zone",
+          "temp_sensor": "Capteur de température de la zone (hors-gel)",
+          "active_months": "Mois de chauffe actifs"
+        }
+      },
+      "flux": {
+        "title": "Flux d'air par climatiseur",
+        "description": "Associez à chaque climatiseur ses entités select de flux horizontal (__h) et vertical (__v)."
+      }
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Capteurs globaux",
+        "data": {
+          "solar_sensor": "Capteur de production solaire (kW)",
+          "tempo_sensor": "Capteur couleur Tempo (RTE)"
+        }
+      }
+    }
+  }
+}
