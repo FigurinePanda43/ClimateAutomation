@@ -68,6 +68,7 @@ class ZoneSettings:
     """
 
     active: bool = True
+    solar_only: bool = False
     temp_confort: float = DEFAULT_TEMP_CONFORT
     temp_eco: float = DEFAULT_TEMP_ECO
     seuil_haute: float = DEFAULT_SEUIL_HAUTE

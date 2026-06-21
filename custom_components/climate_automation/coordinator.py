@@ -8,6 +8,7 @@ dupliquée de l'automatisation YAML d'origine par une fonction de décision uniq
 from __future__ import annotations
 
 import logging
+from dataclasses import replace
 from datetime import datetime, time, timedelta
 
 from homeassistant.const import (
@@ -35,6 +36,7 @@ from .const import (
     COMPUTED_OFF,
     COMPUTED_PRECHAUFFE_ROUGE,
     DEFAULT_ANTI_COURT_CYCLE_MINUTES,
+    DEVICE_MIN_TEMP_SETPOINT,
     DOMAIN,
     HVAC_OFF,
     SOLAR_DEBOUNCE_SECONDS,
@@ -222,6 +224,23 @@ class ClimateAutomationCoordinator(DataUpdateCoordinator[dict[str, DesiredState]
 
         off_state = DesiredState(computed=COMPUTED_OFF, hvac_mode=HVAC_OFF)
 
+        def solar_state() -> DesiredState:
+            """Confort/éco/off selon les seuils de production solaire de la zone."""
+            solar = self._get_solar()
+            if solar is None:
+                # Capteur indisponible : on ne tranche pas, on laisse l'état courant.
+                return self._applied.get(clim, off_state)
+            if solar > s.seuil_haute:
+                return on_state(COMPUTED_CONFORT, s.temp_confort)
+            if solar >= s.seuil_basse:
+                return on_state(COMPUTED_ECO, s.temp_eco)
+            return off_state
+
+        # 0. Mode « solaire uniquement » : on ignore mois/horaire/Tempo et on
+        # n'applique que l'asservissement solaire, en continu, 24h/24.
+        if s.solar_only:
+            return solar_state()
+
         # 1. Mois désactivé -> off.
         if now.month not in zone.active_months:
             return off_state
@@ -242,15 +261,7 @@ class ClimateAutomationCoordinator(DataUpdateCoordinator[dict[str, DesiredState]
             return on_state(COMPUTED_PRECHAUFFE_ROUGE, s.temp_eco)
 
         # 4. Asservissement solaire (seuils propres à la zone).
-        solar = self._get_solar()
-        if solar is None:
-            # Capteur indisponible : on ne tranche pas, on laisse l'état courant.
-            return self._applied.get(clim, off_state)
-        if solar > s.seuil_haute:
-            return on_state(COMPUTED_CONFORT, s.temp_confort)
-        if solar >= s.seuil_basse:
-            return on_state(COMPUTED_ECO, s.temp_eco)
-        return off_state
+        return solar_state()
 
     def compute_desired(
         self, zone: ZoneConfig, clim: str, now: datetime, zone_active: bool
@@ -310,6 +321,16 @@ class ClimateAutomationCoordinator(DataUpdateCoordinator[dict[str, DesiredState]
         state = self.hass.states.get(clim)
         return state is not None and state.state not in _OFF_STATES
 
+    @staticmethod
+    def _clamp_temperature(desired: DesiredState) -> DesiredState:
+        """Borne toute consigne envoyée à la clim à sa valeur minimale physique."""
+        if (
+            desired.temperature is not None
+            and desired.temperature < DEVICE_MIN_TEMP_SETPOINT
+        ):
+            return replace(desired, temperature=DEVICE_MIN_TEMP_SETPOINT)
+        return desired
+
     def _court_cycle_locked(self, clim: str, now: datetime) -> bool:
         """Vrai si un changement ON/OFF est verrouillé par l'anti-court-cycle."""
         last = self._last_onoff_change.get(clim)
@@ -322,6 +343,7 @@ class ClimateAutomationCoordinator(DataUpdateCoordinator[dict[str, DesiredState]
         self, zone: ZoneConfig, clim: str, desired: DesiredState
     ) -> None:
         """Fait converger une clim vers l'état désiré (avec sécurités)."""
+        desired = self._clamp_temperature(desired)
         now = dt_util.now()
         currently_on = self._is_on(clim)
 

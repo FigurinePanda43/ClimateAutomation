@@ -11,7 +11,7 @@ from homeassistant.helpers.entity import EntityCategory
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.restore_state import RestoreEntity
 
-from .const import DOMAIN, SETTING_ACTIVE
+from .const import DOMAIN, SETTING_ACTIVE, SETTING_SOLAR_ONLY
 from .coordinator import ClimateAutomationCoordinator
 from .entity import ZoneEntity
 from .models import ZoneConfig
@@ -28,6 +28,7 @@ async def async_setup_entry(
     entities: list[SwitchEntity] = []
     for zone in coordinator.zones.values():
         entities.append(ZoneActiveSwitch(coordinator, zone))
+        entities.append(ZoneSolarOnlySwitch(coordinator, zone))
         for clim in zone.climates:
             entities.append(ClimEnableSwitch(coordinator, zone, clim))
 
@@ -64,6 +65,48 @@ class ZoneActiveSwitch(ZoneEntity, SwitchEntity, RestoreEntity):
     async def async_turn_off(self, **kwargs: Any) -> None:
         await self.coordinator.async_set_zone_setting(
             self.zone.key, SETTING_ACTIVE, False
+        )
+        self.async_write_ha_state()
+
+
+class ZoneSolarOnlySwitch(ZoneEntity, SwitchEntity, RestoreEntity):
+    """Force la zone à suivre uniquement l'asservissement solaire.
+
+    Quand activé, mois actifs / plage horaire / logique Tempo sont ignorés :
+    la zone applique en continu confort/éco/off selon ses seuils de
+    production solaire, 24h/24. Le hors-gel reste actif par-dessus.
+    """
+
+    _attr_icon = "mdi:solar-power"
+    _attr_entity_category = EntityCategory.CONFIG
+
+    def __init__(
+        self, coordinator: ClimateAutomationCoordinator, zone: ZoneConfig
+    ) -> None:
+        super().__init__(coordinator, zone)
+        self._attr_unique_id = (
+            f"{coordinator.entry_id}_{zone.key}_{SETTING_SOLAR_ONLY}"
+        )
+        self._attr_name = "Forcer logique solaire uniquement"
+
+    async def async_added_to_hass(self) -> None:
+        await super().async_added_to_hass()
+        if (last := await self.async_get_last_state()) is not None:
+            self.coordinator.settings[self.zone.key].solar_only = last.state == "on"
+
+    @property
+    def is_on(self) -> bool:
+        return self.coordinator.settings[self.zone.key].solar_only
+
+    async def async_turn_on(self, **kwargs: Any) -> None:
+        await self.coordinator.async_set_zone_setting(
+            self.zone.key, SETTING_SOLAR_ONLY, True
+        )
+        self.async_write_ha_state()
+
+    async def async_turn_off(self, **kwargs: Any) -> None:
+        await self.coordinator.async_set_zone_setting(
+            self.zone.key, SETTING_SOLAR_ONLY, False
         )
         self.async_write_ha_state()
 
