@@ -224,15 +224,21 @@ class ClimateAutomationCoordinator(DataUpdateCoordinator[dict[str, DesiredState]
 
         off_state = DesiredState(computed=COMPUTED_OFF, hvac_mode=HVAC_OFF)
 
+        tempo = self._get_tempo()
+
         def solar_state() -> DesiredState:
-            """Confort/éco/off selon les seuils de production solaire de la zone."""
+            """Confort/éco/off selon les seuils de production solaire de la zone.
+
+            Le seuil bas ne déclenche l'extinction que les jours Tempo rouge.
+            Les autres jours, une production sous le seuil bas reste en ÉCO.
+            """
             solar = self._get_solar()
             if solar is None:
                 # Capteur indisponible : on ne tranche pas, on laisse l'état courant.
                 return self._applied.get(clim, off_state)
             if solar > s.seuil_haute:
                 return on_state(COMPUTED_CONFORT, s.temp_confort)
-            if solar >= s.seuil_basse:
+            if solar >= s.seuil_basse or tempo != TEMPO_ROUGE:
                 return on_state(COMPUTED_ECO, s.temp_eco)
             return off_state
 
@@ -245,7 +251,6 @@ class ClimateAutomationCoordinator(DataUpdateCoordinator[dict[str, DesiredState]
         if now.month not in zone.active_months:
             return off_state
 
-        tempo = self._get_tempo()
         current = now.time()
 
         # 2. Plage horaire. Le début dépend de la couleur Tempo.
