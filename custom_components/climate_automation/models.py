@@ -81,7 +81,8 @@ class ZoneSettings:
     heure_start_rouge: time = DEFAULT_HEURE_START_ROUGE
     heure_start_normal: time = DEFAULT_HEURE_START_NORMAL
     heure_stop_rouge_matin: time = DEFAULT_HEURE_STOP_ROUGE_MATIN
-    decalage_coucher: time = DEFAULT_DECALAGE_COUCHER
+    # Minutes par rapport au coucher du soleil (négatif = avant, positif = après).
+    decalage_coucher: float = DEFAULT_DECALAGE_COUCHER
 
 
 @dataclass

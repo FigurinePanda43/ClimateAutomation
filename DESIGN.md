@@ -60,7 +60,8 @@ vers cet état. L'ordre de priorité des règles :
    plage horaire.
 2. **Mois désactivé** → `off`.
 3. **Hors plage horaire** (avant le début applicable / après
-   `coucher_soleil − décalage`) → `off`.
+   `coucher_soleil + décalage`, décalage négatif = avant le coucher, positif =
+   après) → `off`.
 4. **Jour Tempo rouge, fenêtre matinale** (`heure_start_rouge_tempo` →
    `heure_stop_rouge_matin`) → **préchauffe ÉCO forcée** (pas d'arbitrage
    solaire). En dehors de cette fenêtre rouge (après la pointe, jusqu'au
@@ -127,11 +128,11 @@ lecture d'état asynchrone de l'ancienne version).
 - **Par zone** (×3) :
   - `switch` zone active
   - `number` : température confort, éco, seuil production haute, seuil
-    production basse, seuil hors-gel
+    production basse, seuil hors-gel, décalage coucher de soleil (minutes,
+    négatif = avant, positif = après)
   - `select` : mode HVAC (`heat/cool/dry/fan_only/auto`), mode ventilation
     (`auto/low/medium/high/quiet`), flux horizontal, flux vertical
-  - `time` : début rouge Tempo, début normal, fin matinée rouge, décalage
-    coucher de soleil
+  - `time` : début rouge Tempo, début normal, fin matinée rouge
 - **Par clim** : `switch` d'activation. Activer → la clim converge
   immédiatement vers l'état voulu par sa zone ; désactiver → extinction
   immédiate.

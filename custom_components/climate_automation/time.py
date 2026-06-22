@@ -11,12 +11,10 @@ from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.restore_state import RestoreEntity
 
 from .const import (
-    DEFAULT_DECALAGE_COUCHER,
     DEFAULT_HEURE_START_NORMAL,
     DEFAULT_HEURE_START_ROUGE,
     DEFAULT_HEURE_STOP_ROUGE_MATIN,
     DOMAIN,
-    SETTING_DECALAGE_COUCHER,
     SETTING_START_NORMAL,
     SETTING_START_ROUGE,
     SETTING_STOP_ROUGE_MATIN,
@@ -43,12 +41,6 @@ _TIME_SETTINGS: tuple[tuple[str, str, str, time], ...] = (
         "Heure fin matinée rouge",
         "mdi:clock-end",
         DEFAULT_HEURE_STOP_ROUGE_MATIN,
-    ),
-    (
-        SETTING_DECALAGE_COUCHER,
-        "Décalage avant coucher du soleil",
-        "mdi:weather-sunset-down",
-        DEFAULT_DECALAGE_COUCHER,
     ),
 )
 

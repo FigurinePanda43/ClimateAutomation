@@ -14,17 +14,21 @@ from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.restore_state import RestoreEntity
 
 from .const import (
+    DECALAGE_COUCHER_STEP,
     DEFAULT_ANTI_COURT_CYCLE_MINUTES,
     DOMAIN,
     MAX_ANTI_COURT_CYCLE,
+    MAX_DECALAGE_COUCHER,
     MAX_HORS_GEL_THRESHOLD,
     MAX_SEUIL,
     MAX_TEMP,
     MIN_ANTI_COURT_CYCLE,
+    MIN_DECALAGE_COUCHER,
     MIN_HORS_GEL_THRESHOLD,
     MIN_SEUIL,
     MIN_TEMP,
     SETTING_ANTI_COURT_CYCLE,
+    SETTING_DECALAGE_COUCHER,
     SETTING_HORS_GEL,
     SETTING_SEUIL_BASSE,
     SETTING_SEUIL_HAUTE,
@@ -96,6 +100,15 @@ ZONE_NUMBERS: tuple[ZoneNumberDescription, ...] = (
         max_value=MAX_SEUIL,
         step=SEUIL_STEP,
         unit=UnitOfPower.KILO_WATT,
+    ),
+    ZoneNumberDescription(
+        key=SETTING_DECALAGE_COUCHER,
+        name="Décalage coucher du soleil (négatif = avant, positif = après)",
+        icon="mdi:weather-sunset-down",
+        min_value=MIN_DECALAGE_COUCHER,
+        max_value=MAX_DECALAGE_COUCHER,
+        step=DECALAGE_COUCHER_STEP,
+        unit=UnitOfTime.MINUTES,
     ),
 )
 

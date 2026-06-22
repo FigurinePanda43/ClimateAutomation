@@ -63,7 +63,10 @@ DEFAULT_ANTI_COURT_CYCLE_MINUTES: Final = 5.0
 DEFAULT_HEURE_START_ROUGE: Final = time(6, 0)
 DEFAULT_HEURE_START_NORMAL: Final = time(7, 0)
 DEFAULT_HEURE_STOP_ROUGE_MATIN: Final = time(9, 0)
-DEFAULT_DECALAGE_COUCHER: Final = time(0, 30)  # HH:MM avant le coucher
+# Décalage (minutes) par rapport au coucher du soleil : négatif = arrêt avant
+# le coucher, positif = arrêt après le coucher (utile en hiver pour prolonger
+# le chauffage une fois la nuit tombée).
+DEFAULT_DECALAGE_COUCHER: Final = -30.0
 
 # Consigne minimale physiquement acceptée par les climatiseurs. Toute commande
 # de température envoyée à une clim est bornée à cette valeur, quelle que soit
@@ -83,6 +86,9 @@ MAX_SEUIL: Final = 20.0
 SEUIL_STEP: Final = 0.1
 MIN_ANTI_COURT_CYCLE: Final = 0.0
 MAX_ANTI_COURT_CYCLE: Final = 60.0
+MIN_DECALAGE_COUCHER: Final = -240.0
+MAX_DECALAGE_COUCHER: Final = 240.0
+DECALAGE_COUCHER_STEP: Final = 5.0
 
 # --- Identifiants des réglages « live » par zone -----------------------------
 # (utilisés pour construire les unique_id et le stockage runtime)
