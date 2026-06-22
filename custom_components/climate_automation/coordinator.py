@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import logging
 from dataclasses import replace
-from datetime import datetime, time, timedelta
+from datetime import datetime, timedelta
 
 from homeassistant.const import (
     ATTR_ENTITY_ID,
@@ -199,13 +199,16 @@ class ClimateAutomationCoordinator(DataUpdateCoordinator[dict[str, DesiredState]
         except (ValueError, TypeError):
             return None
 
-    def _sunset_stop(self, now: datetime, decalage: time) -> datetime | None:
-        """Heure d'extinction du soir = coucher du soleil - décalage."""
+    def _sunset_stop(self, now: datetime, decalage_minutes: float) -> datetime | None:
+        """Heure d'extinction du soir = coucher du soleil + décalage.
+
+        Le décalage est négatif pour s'arrêter avant le coucher, positif pour
+        s'arrêter après (ex: prolonger le chauffage en hiver).
+        """
         sunset = get_astral_event_date(self.hass, SUN_EVENT_SUNSET, now.date())
         if sunset is None:
             return None
-        offset = timedelta(hours=decalage.hour, minutes=decalage.minute)
-        return dt_util.as_local(sunset) - offset
+        return dt_util.as_local(sunset) + timedelta(minutes=decalage_minutes)
 
     # ---------------------------------------------------------- décision cœur
     def _compute_base(self, zone: ZoneConfig, clim: str, now: datetime) -> DesiredState:
