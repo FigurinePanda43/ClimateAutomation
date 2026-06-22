@@ -229,11 +229,13 @@ class ClimateAutomationCoordinator(DataUpdateCoordinator[dict[str, DesiredState]
 
         tempo = self._get_tempo()
 
-        def solar_state() -> DesiredState:
+        def solar_state(*, gate_seuil_basse_to_rouge: bool) -> DesiredState:
             """Confort/éco/off selon les seuils de production solaire de la zone.
 
-            Le seuil bas ne déclenche l'extinction que les jours Tempo rouge.
-            Les autres jours, une production sous le seuil bas reste en ÉCO.
+            En mode normal (`gate_seuil_basse_to_rouge=True`), le seuil bas ne
+            déclenche l'extinction que les jours Tempo rouge ; les autres jours,
+            une production sous le seuil bas reste en ÉCO. En mode « solaire
+            uniquement », Tempo est ignoré : sous le seuil bas, c'est toujours off.
             """
             solar = self._get_solar()
             if solar is None:
@@ -241,14 +243,16 @@ class ClimateAutomationCoordinator(DataUpdateCoordinator[dict[str, DesiredState]
                 return self._applied.get(clim, off_state)
             if solar > s.seuil_haute:
                 return on_state(COMPUTED_CONFORT, s.temp_confort)
-            if solar >= s.seuil_basse or tempo != TEMPO_ROUGE:
+            if solar >= s.seuil_basse:
+                return on_state(COMPUTED_ECO, s.temp_eco)
+            if gate_seuil_basse_to_rouge and tempo != TEMPO_ROUGE:
                 return on_state(COMPUTED_ECO, s.temp_eco)
             return off_state
 
         # 0. Mode « solaire uniquement » : on ignore mois/horaire/Tempo et on
         # n'applique que l'asservissement solaire, en continu, 24h/24.
         if s.solar_only:
-            return solar_state()
+            return solar_state(gate_seuil_basse_to_rouge=False)
 
         # 1. Mois désactivé -> off.
         if now.month not in zone.active_months:
@@ -269,7 +273,7 @@ class ClimateAutomationCoordinator(DataUpdateCoordinator[dict[str, DesiredState]
             return on_state(COMPUTED_PRECHAUFFE_ROUGE, s.temp_eco)
 
         # 4. Asservissement solaire (seuils propres à la zone).
-        return solar_state()
+        return solar_state(gate_seuil_basse_to_rouge=True)
 
     def compute_desired(
         self, zone: ZoneConfig, clim: str, now: datetime, zone_active: bool
