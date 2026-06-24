@@ -285,10 +285,10 @@ class ClimateAutomationCoordinator(DataUpdateCoordinator[dict[str, DesiredState]
         current = now.time()
 
         # 2. Plage horaire. Le début dépend de la couleur Tempo. En dehors de la
-        # plage, l'automatisation force l'extinction sauf dans une marge de
+        # plage, l'automatisation force l'extinction pendant une marge de
         # transition de part et d'autre (juste après l'arrêt du soir, juste
-        # avant le début du matin) : dans cette marge, elle ne touche plus la
-        # clim et laisse l'utilisateur libre de la piloter manuellement.
+        # avant le début du matin) ; au-delà, en pleine nuit, elle ne touche
+        # plus la clim et laisse l'utilisateur libre de la piloter manuellement.
         start = g.heure_start_rouge if tempo == TEMPO_ROUGE else s.heure_start_normal
         margin = timedelta(minutes=OFF_WINDOW_MARGIN_MINUTES)
 
@@ -297,14 +297,14 @@ class ClimateAutomationCoordinator(DataUpdateCoordinator[dict[str, DesiredState]
                 hour=start.hour, minute=start.minute, second=start.second, microsecond=0
             )
             if now >= start_dt - margin:
-                return unmanaged_state
-            return off_state
+                return off_state
+            return unmanaged_state
 
         sunset_stop = self._sunset_stop(now, s.decalage_coucher)
         if sunset_stop is not None and now >= sunset_stop:
             if now < sunset_stop + margin:
-                return unmanaged_state
-            return off_state
+                return off_state
+            return unmanaged_state
 
         # 3. Jour rouge, fenêtre matinale -> préchauffe ÉCO forcée.
         if tempo == TEMPO_ROUGE and current < g.heure_stop_rouge_matin:
@@ -403,7 +403,7 @@ class ClimateAutomationCoordinator(DataUpdateCoordinator[dict[str, DesiredState]
     ) -> None:
         """Fait converger une clim vers l'état désiré (avec sécurités)."""
         if not desired.managed:
-            # Mode manuel ou marge de transition autour de la plage horaire :
+            # Mode manuel ou pleine nuit (au-delà de la marge de transition) :
             # on ne touche pas à la clim, laissée à l'utilisateur.
             return
 
