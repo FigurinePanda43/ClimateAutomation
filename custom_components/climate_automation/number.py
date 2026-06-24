@@ -53,6 +53,7 @@ class ZoneNumberDescription:
     max_value: float
     step: float
     unit: str
+    on_main_device: bool = False
 
 
 ZONE_NUMBERS: tuple[ZoneNumberDescription, ...] = (
@@ -82,6 +83,7 @@ ZONE_NUMBERS: tuple[ZoneNumberDescription, ...] = (
         max_value=MAX_HORS_GEL_THRESHOLD,
         step=TEMP_STEP,
         unit=UnitOfTemperature.CELSIUS,
+        on_main_device=True,
     ),
     ZoneNumberDescription(
         key=SETTING_SEUIL_HAUTE,
@@ -140,10 +142,12 @@ class ZoneNumber(ZoneEntity, NumberEntity, RestoreEntity):
         zone: ZoneConfig,
         desc: ZoneNumberDescription,
     ) -> None:
-        super().__init__(coordinator, zone)
+        super().__init__(coordinator, zone, on_main_device=desc.on_main_device)
         self._desc = desc
         self._attr_unique_id = f"{coordinator.entry_id}_{zone.key}_{desc.key}"
-        self._attr_name = desc.name
+        self._attr_name = (
+            f"{zone.name} {desc.name}" if desc.on_main_device else desc.name
+        )
         self._attr_icon = desc.icon
         self._attr_native_min_value = desc.min_value
         self._attr_native_max_value = desc.max_value
