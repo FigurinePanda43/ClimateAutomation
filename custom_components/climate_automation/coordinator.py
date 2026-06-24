@@ -43,7 +43,7 @@ from .const import (
     TEMPO_ROUGE,
     UPDATE_INTERVAL_SECONDS,
 )
-from .models import DesiredState, ZoneConfig, ZoneSettings
+from .models import DesiredState, GlobalSettings, ZoneConfig, ZoneSettings
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -77,6 +77,8 @@ class ClimateAutomationCoordinator(DataUpdateCoordinator[dict[str, DesiredState]
         self.settings: dict[str, ZoneSettings] = {
             key: ZoneSettings() for key in zones
         }
+        # Réglages communs aux 3 zones (une seule entité pour les piloter).
+        self.global_settings = GlobalSettings()
         self.anti_court_cycle_minutes: float = DEFAULT_ANTI_COURT_CYCLE_MINUTES
 
         # Activation par clim (interrupteur par clim). Défaut : activée.
@@ -149,6 +151,21 @@ class ClimateAutomationCoordinator(DataUpdateCoordinator[dict[str, DesiredState]
         """Met à jour le délai anti-court-cycle global."""
         self.anti_court_cycle_minutes = minutes
 
+    async def async_set_global_setting(self, attr: str, value: object) -> None:
+        """Met à jour un réglage commun aux 3 zones puis relance le moteur."""
+        setattr(self.global_settings, attr, value)
+        await self.async_request_refresh()
+
+    async def async_set_month_active(self, month: int, enabled: bool) -> None:
+        """Active/désactive un mois (commun aux 3 zones) puis relance le moteur."""
+        months = set(self.global_settings.active_months)
+        if enabled:
+            months.add(month)
+        else:
+            months.discard(month)
+        self.global_settings.active_months = months
+        await self.async_request_refresh()
+
     async def async_set_clim_enabled(self, clim: str, enabled: bool) -> None:
         """Active/désactive une clim et applique immédiatement le changement."""
         self.clim_enabled[clim] = enabled
@@ -214,15 +231,16 @@ class ClimateAutomationCoordinator(DataUpdateCoordinator[dict[str, DesiredState]
     def _compute_base(self, zone: ZoneConfig, clim: str, now: datetime) -> DesiredState:
         """Calcule l'état désiré « normal » (mois/horaire/Tempo/solaire), sans hors-gel."""
         s = self.settings[zone.key]
+        g = self.global_settings
 
         def on_state(computed: str, temperature: float) -> DesiredState:
             return DesiredState(
                 computed=computed,
-                hvac_mode=s.hvac_mode,
+                hvac_mode=g.hvac_mode,
                 temperature=temperature,
-                fan_mode=s.fan_mode,
-                flux_horizontal=s.flux_horizontal,
-                flux_vertical=s.flux_vertical,
+                fan_mode=g.fan_mode,
+                flux_horizontal=g.flux_horizontal,
+                flux_vertical=g.flux_vertical,
             )
 
         off_state = DesiredState(computed=COMPUTED_OFF, hvac_mode=HVAC_OFF)
@@ -254,14 +272,14 @@ class ClimateAutomationCoordinator(DataUpdateCoordinator[dict[str, DesiredState]
         if s.solar_only:
             return solar_state(gate_seuil_basse_to_rouge=False)
 
-        # 1. Mois désactivé -> off.
-        if now.month not in zone.active_months:
+        # 1. Mois désactivé (réglage commun aux 3 zones) -> off.
+        if now.month not in g.active_months:
             return off_state
 
         current = now.time()
 
         # 2. Plage horaire. Le début dépend de la couleur Tempo.
-        start = s.heure_start_rouge if tempo == TEMPO_ROUGE else s.heure_start_normal
+        start = g.heure_start_rouge if tempo == TEMPO_ROUGE else s.heure_start_normal
         if current < start:
             return off_state
         sunset_stop = self._sunset_stop(now, s.decalage_coucher)
@@ -269,7 +287,7 @@ class ClimateAutomationCoordinator(DataUpdateCoordinator[dict[str, DesiredState]
             return off_state
 
         # 3. Jour rouge, fenêtre matinale -> préchauffe ÉCO forcée.
-        if tempo == TEMPO_ROUGE and current < s.heure_stop_rouge_matin:
+        if tempo == TEMPO_ROUGE and current < g.heure_stop_rouge_matin:
             return on_state(COMPUTED_PRECHAUFFE_ROUGE, s.temp_eco)
 
         # 4. Asservissement solaire (seuils propres à la zone).
@@ -284,11 +302,11 @@ class ClimateAutomationCoordinator(DataUpdateCoordinator[dict[str, DesiredState]
         déjà plus haute, et reste actif même si la zone ou la clim est
         désactivée manuellement (sécurité du logement avant tout).
         """
-        s = self.settings[zone.key]
+        g = self.global_settings
         clim_active = self.clim_enabled.get(clim, True)
 
         room_temp = self._get_zone_temperature(zone)
-        hors_gel_triggered = room_temp is not None and room_temp < s.hors_gel
+        hors_gel_triggered = room_temp is not None and room_temp < g.hors_gel
 
         disabled = not clim_active or not zone_active
         base = (
@@ -300,17 +318,17 @@ class ClimateAutomationCoordinator(DataUpdateCoordinator[dict[str, DesiredState]
         if not hors_gel_triggered:
             return base
 
-        if base.is_on and base.temperature is not None and base.temperature >= s.hors_gel:
+        if base.is_on and base.temperature is not None and base.temperature >= g.hors_gel:
             # La consigne normale couvre déjà le plancher hors-gel.
             return base
 
         return DesiredState(
             computed=COMPUTED_HORS_GEL,
-            hvac_mode=s.hvac_mode,
-            temperature=s.hors_gel,
-            fan_mode=s.fan_mode,
-            flux_horizontal=s.flux_horizontal,
-            flux_vertical=s.flux_vertical,
+            hvac_mode=g.hvac_mode,
+            temperature=g.hors_gel,
+            fan_mode=g.fan_mode,
+            flux_horizontal=g.flux_horizontal,
+            flux_vertical=g.flux_vertical,
         )
 
     # ----------------------------------------------------------- application

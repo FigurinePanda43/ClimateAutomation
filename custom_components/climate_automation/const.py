@@ -35,7 +35,22 @@ CONF_ZONE_CLIMATES: Final = "climates"
 CONF_ZONE_TEMP_SENSOR: Final = "temp_sensor"
 CONF_ZONE_FLUX_H_MAP: Final = "flux_h_map"  # {climate_entity: select_entity}
 CONF_ZONE_FLUX_V_MAP: Final = "flux_v_map"  # {climate_entity: select_entity}
-CONF_ZONE_MONTHS: Final = "active_months"  # liste de int 1..12
+
+# --- Mois (libellés FR, utilisés pour les interrupteurs « mois actif ») ------
+MONTH_LABELS: Final = (
+    (1, "Janvier"),
+    (2, "Février"),
+    (3, "Mars"),
+    (4, "Avril"),
+    (5, "Mai"),
+    (6, "Juin"),
+    (7, "Juillet"),
+    (8, "Août"),
+    (9, "Septembre"),
+    (10, "Octobre"),
+    (11, "Novembre"),
+    (12, "Décembre"),
+)
 
 # --- Couleur Tempo ------------------------------------------------------------
 TEMPO_ROUGE: Final = "rouge"
@@ -108,8 +123,9 @@ SETTING_START_NORMAL: Final = "heure_start_normal"
 SETTING_STOP_ROUGE_MATIN: Final = "heure_stop_rouge_matin"
 SETTING_DECALAGE_COUCHER: Final = "decalage_coucher"
 
-# Réglage global.
+# Réglages globaux (un seul réglage pour les 3 zones).
 SETTING_ANTI_COURT_CYCLE: Final = "anti_court_cycle"
+SETTING_MONTH_PREFIX: Final = "month_active_"
 
 # --- États calculés (diagnostic) ---------------------------------------------
 COMPUTED_OFF: Final = "off"

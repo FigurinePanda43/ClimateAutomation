@@ -11,9 +11,9 @@ from homeassistant.helpers.entity import EntityCategory
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.restore_state import RestoreEntity
 
-from .const import DOMAIN, SETTING_ACTIVE, SETTING_SOLAR_ONLY
+from .const import DOMAIN, MONTH_LABELS, SETTING_ACTIVE, SETTING_SOLAR_ONLY
 from .coordinator import ClimateAutomationCoordinator
-from .entity import ZoneEntity
+from .entity import ClimateAutomationEntity, ZoneEntity
 from .models import ZoneConfig
 
 
@@ -26,6 +26,8 @@ async def async_setup_entry(
     coordinator: ClimateAutomationCoordinator = hass.data[DOMAIN][entry.entry_id]
 
     entities: list[SwitchEntity] = []
+    for month, label in MONTH_LABELS:
+        entities.append(MonthActiveSwitch(coordinator, month, label))
     for zone in coordinator.zones.values():
         entities.append(ZoneActiveSwitch(coordinator, zone))
         entities.append(ZoneSolarOnlySwitch(coordinator, zone))
@@ -33,6 +35,40 @@ async def async_setup_entry(
             entities.append(ClimEnableSwitch(coordinator, zone, clim))
 
     async_add_entities(entities)
+
+
+class MonthActiveSwitch(ClimateAutomationEntity, SwitchEntity, RestoreEntity):
+    """Active ou désactive le chauffage pour un mois donné (commun aux 3 zones)."""
+
+    _attr_icon = "mdi:calendar-month"
+    _attr_entity_category = EntityCategory.CONFIG
+
+    def __init__(
+        self, coordinator: ClimateAutomationCoordinator, month: int, label: str
+    ) -> None:
+        super().__init__(coordinator)
+        self._month = month
+        self._attr_unique_id = f"{coordinator.entry_id}_month_active_{month}"
+        self._attr_name = f"Chauffage actif — {label}"
+
+    async def async_added_to_hass(self) -> None:
+        await super().async_added_to_hass()
+        if (last := await self.async_get_last_state()) is not None:
+            await self.coordinator.async_set_month_active(
+                self._month, last.state == "on"
+            )
+
+    @property
+    def is_on(self) -> bool:
+        return self._month in self.coordinator.global_settings.active_months
+
+    async def async_turn_on(self, **kwargs: Any) -> None:
+        await self.coordinator.async_set_month_active(self._month, True)
+        self.async_write_ha_state()
+
+    async def async_turn_off(self, **kwargs: Any) -> None:
+        await self.coordinator.async_set_month_active(self._month, False)
+        self.async_write_ha_state()
 
 
 class ZoneActiveSwitch(ZoneEntity, SwitchEntity, RestoreEntity):
