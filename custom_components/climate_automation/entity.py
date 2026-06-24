@@ -30,15 +30,24 @@ class ZoneEntity(ClimateAutomationEntity):
     """Entité rattachée à une zone (sous-appareil dédié)."""
 
     def __init__(
-        self, coordinator: ClimateAutomationCoordinator, zone: ZoneConfig
+        self,
+        coordinator: ClimateAutomationCoordinator,
+        zone: ZoneConfig,
+        on_main_device: bool = False,
     ) -> None:
-        """Initialise une entité de zone."""
+        """Initialise une entité de zone.
+
+        ``on_main_device`` regroupe l'entité sur l'appareil « Climate
+        Automation » principal plutôt que sur le sous-appareil de la zone
+        (ex : flux d'air, modes, hors-gel, horaires rouge).
+        """
         super().__init__(coordinator)
         self.zone = zone
-        self._attr_device_info = DeviceInfo(
-            identifiers={(DOMAIN, f"{coordinator.entry_id}_{zone.key}")},
-            name=f"Climate Automation — {zone.name}",
-            manufacturer="Climate Automation",
-            model="Zone de chauffage",
-            via_device=(DOMAIN, coordinator.entry_id),
-        )
+        if not on_main_device:
+            self._attr_device_info = DeviceInfo(
+                identifiers={(DOMAIN, f"{coordinator.entry_id}_{zone.key}")},
+                name=f"Climate Automation — {zone.name}",
+                manufacturer="Climate Automation",
+                model="Zone de chauffage",
+                via_device=(DOMAIN, coordinator.entry_id),
+            )

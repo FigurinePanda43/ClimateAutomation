@@ -23,24 +23,27 @@ from .coordinator import ClimateAutomationCoordinator
 from .entity import ZoneEntity
 from .models import ZoneConfig
 
-_TIME_SETTINGS: tuple[tuple[str, str, str, time], ...] = (
+_TIME_SETTINGS: tuple[tuple[str, str, str, time, bool], ...] = (
     (
         SETTING_START_ROUGE,
         "Heure début (jour rouge)",
         "mdi:clock-start",
         DEFAULT_HEURE_START_ROUGE,
+        True,
     ),
     (
         SETTING_START_NORMAL,
         "Heure début (jour normal)",
         "mdi:clock-start",
         DEFAULT_HEURE_START_NORMAL,
+        False,
     ),
     (
         SETTING_STOP_ROUGE_MATIN,
         "Heure fin matinée rouge",
         "mdi:clock-end",
         DEFAULT_HEURE_STOP_ROUGE_MATIN,
+        True,
     ),
 )
 
@@ -55,8 +58,19 @@ async def async_setup_entry(
 
     entities: list[TimeEntity] = []
     for zone in coordinator.zones.values():
-        for key, name, icon, default in _TIME_SETTINGS:
-            entities.append(ZoneTime(coordinator, zone, key, name, icon, default))
+        for key, name, icon, default, on_main_device in _TIME_SETTINGS:
+            entity_name = f"{zone.name} {name}" if on_main_device else name
+            entities.append(
+                ZoneTime(
+                    coordinator,
+                    zone,
+                    key,
+                    entity_name,
+                    icon,
+                    default,
+                    on_main_device=on_main_device,
+                )
+            )
 
     async_add_entities(entities)
 
@@ -72,8 +86,9 @@ class ZoneTime(ZoneEntity, TimeEntity, RestoreEntity):
         name: str,
         icon: str,
         default: time,
+        on_main_device: bool = False,
     ) -> None:
-        super().__init__(coordinator, zone)
+        super().__init__(coordinator, zone, on_main_device=on_main_device)
         self._setting_key = setting_key
         self._attr_unique_id = f"{coordinator.entry_id}_{zone.key}_{setting_key}"
         self._attr_name = name

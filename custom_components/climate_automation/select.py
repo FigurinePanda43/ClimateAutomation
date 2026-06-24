@@ -50,10 +50,11 @@ async def async_setup_entry(
                 coordinator,
                 zone,
                 SETTING_HVAC_MODE,
-                "Mode de fonctionnement",
+                f"{zone.name} Mode de fonctionnement",
                 "mdi:hvac",
                 HVAC_MODE_OPTIONS,
                 DEFAULT_HVAC_MODE,
+                on_main_device=True,
             )
         )
         entities.append(
@@ -61,10 +62,11 @@ async def async_setup_entry(
                 coordinator,
                 zone,
                 SETTING_FAN_MODE,
-                "Mode de ventilation",
+                f"{zone.name} Mode de ventilation",
                 "mdi:fan",
                 FAN_MODE_OPTIONS,
                 DEFAULT_FAN_MODE,
+                on_main_device=True,
             )
         )
 
@@ -75,10 +77,11 @@ async def async_setup_entry(
                     coordinator,
                     zone,
                     SETTING_FLUX_H,
-                    "Flux d'air horizontal",
+                    f"{zone.name} Flux d'air horizontal",
                     "mdi:arrow-left-right",
                     flux_h_options,
                     flux_h_options[0],
+                    on_main_device=True,
                 )
             )
 
@@ -89,10 +92,11 @@ async def async_setup_entry(
                     coordinator,
                     zone,
                     SETTING_FLUX_V,
-                    "Flux d'air vertical",
+                    f"{zone.name} Flux d'air vertical",
                     "mdi:arrow-up-down",
                     flux_v_options,
                     flux_v_options[0],
+                    on_main_device=True,
                 )
             )
 
@@ -111,8 +115,9 @@ class ZoneSelect(ZoneEntity, SelectEntity, RestoreEntity):
         icon: str,
         options: list[str],
         default: str,
+        on_main_device: bool = False,
     ) -> None:
-        super().__init__(coordinator, zone)
+        super().__init__(coordinator, zone, on_main_device=on_main_device)
         self._setting_key = setting_key
         self._attr_unique_id = f"{coordinator.entry_id}_{zone.key}_{setting_key}"
         self._attr_name = name
