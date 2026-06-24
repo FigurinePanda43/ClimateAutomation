@@ -285,9 +285,10 @@ class ClimateAutomationCoordinator(DataUpdateCoordinator[dict[str, DesiredState]
         current = now.time()
 
         # 2. Plage horaire. Le début dépend de la couleur Tempo. En dehors de la
-        # plage, l'automatisation force l'extinction uniquement pendant une
-        # marge de transition ; au-delà, elle ne touche plus la clim et laisse
-        # l'utilisateur libre de la piloter manuellement jusqu'à la reprise.
+        # plage, l'automatisation force l'extinction sauf dans une marge de
+        # transition de part et d'autre (juste après l'arrêt du soir, juste
+        # avant le début du matin) : dans cette marge, elle ne touche plus la
+        # clim et laisse l'utilisateur libre de la piloter manuellement.
         start = g.heure_start_rouge if tempo == TEMPO_ROUGE else s.heure_start_normal
         margin = timedelta(minutes=OFF_WINDOW_MARGIN_MINUTES)
 
@@ -296,14 +297,14 @@ class ClimateAutomationCoordinator(DataUpdateCoordinator[dict[str, DesiredState]
                 hour=start.hour, minute=start.minute, second=start.second, microsecond=0
             )
             if now >= start_dt - margin:
-                return off_state
-            return unmanaged_state
+                return unmanaged_state
+            return off_state
 
         sunset_stop = self._sunset_stop(now, s.decalage_coucher)
         if sunset_stop is not None and now >= sunset_stop:
             if now < sunset_stop + margin:
-                return off_state
-            return unmanaged_state
+                return unmanaged_state
+            return off_state
 
         # 3. Jour rouge, fenêtre matinale -> préchauffe ÉCO forcée.
         if tempo == TEMPO_ROUGE and current < g.heure_stop_rouge_matin:
@@ -402,8 +403,8 @@ class ClimateAutomationCoordinator(DataUpdateCoordinator[dict[str, DesiredState]
     ) -> None:
         """Fait converger une clim vers l'état désiré (avec sécurités)."""
         if not desired.managed:
-            # Mode manuel ou hors plage horaire (au-delà de la marge de
-            # transition) : on ne touche pas à la clim, laissée à l'utilisateur.
+            # Mode manuel ou marge de transition autour de la plage horaire :
+            # on ne touche pas à la clim, laissée à l'utilisateur.
             return
 
         desired = self._clamp_temperature(desired)
