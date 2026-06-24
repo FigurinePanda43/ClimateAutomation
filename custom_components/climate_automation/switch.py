@@ -11,7 +11,13 @@ from homeassistant.helpers.entity import EntityCategory
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.restore_state import RestoreEntity
 
-from .const import DOMAIN, MONTH_LABELS, SETTING_ACTIVE, SETTING_SOLAR_ONLY
+from .const import (
+    DOMAIN,
+    MONTH_LABELS,
+    SETTING_ACTIVE,
+    SETTING_MANUAL,
+    SETTING_SOLAR_ONLY,
+)
 from .coordinator import ClimateAutomationCoordinator
 from .entity import ClimateAutomationEntity, ZoneEntity
 from .models import ZoneConfig
@@ -31,6 +37,7 @@ async def async_setup_entry(
     for zone in coordinator.zones.values():
         entities.append(ZoneActiveSwitch(coordinator, zone))
         entities.append(ZoneSolarOnlySwitch(coordinator, zone))
+        entities.append(ZoneManualSwitch(coordinator, zone))
         for clim in zone.climates:
             entities.append(ClimEnableSwitch(coordinator, zone, clim))
 
@@ -143,6 +150,46 @@ class ZoneSolarOnlySwitch(ZoneEntity, SwitchEntity, RestoreEntity):
     async def async_turn_off(self, **kwargs: Any) -> None:
         await self.coordinator.async_set_zone_setting(
             self.zone.key, SETTING_SOLAR_ONLY, False
+        )
+        self.async_write_ha_state()
+
+
+class ZoneManualSwitch(ZoneEntity, SwitchEntity, RestoreEntity):
+    """Bascule une zone en mode manuel total.
+
+    Quand activé, l'automatisation ne touche plus du tout aux clims de la
+    zone (y compris le hors-gel) : la zone est entièrement laissée à la main
+    de l'utilisateur, jusqu'à désactivation de l'interrupteur.
+    """
+
+    _attr_icon = "mdi:hand-back-right"
+    _attr_entity_category = EntityCategory.CONFIG
+
+    def __init__(
+        self, coordinator: ClimateAutomationCoordinator, zone: ZoneConfig
+    ) -> None:
+        super().__init__(coordinator, zone)
+        self._attr_unique_id = f"{coordinator.entry_id}_{zone.key}_{SETTING_MANUAL}"
+        self._attr_name = "Mode manuel"
+
+    async def async_added_to_hass(self) -> None:
+        await super().async_added_to_hass()
+        if (last := await self.async_get_last_state()) is not None:
+            self.coordinator.settings[self.zone.key].manual = last.state == "on"
+
+    @property
+    def is_on(self) -> bool:
+        return self.coordinator.settings[self.zone.key].manual
+
+    async def async_turn_on(self, **kwargs: Any) -> None:
+        await self.coordinator.async_set_zone_setting(
+            self.zone.key, SETTING_MANUAL, True
+        )
+        self.async_write_ha_state()
+
+    async def async_turn_off(self, **kwargs: Any) -> None:
+        await self.coordinator.async_set_zone_setting(
+            self.zone.key, SETTING_MANUAL, False
         )
         self.async_write_ha_state()
 

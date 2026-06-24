@@ -65,6 +65,7 @@ class ZoneSettings:
 
     active: bool = True
     solar_only: bool = False
+    manual: bool = False
     temp_confort: float = DEFAULT_TEMP_CONFORT
     temp_eco: float = DEFAULT_TEMP_ECO
     seuil_haute: float = DEFAULT_SEUIL_HAUTE
@@ -104,6 +105,10 @@ class DesiredState:
     fan_mode: str | None = None
     flux_horizontal: str | None = None
     flux_vertical: str | None = None
+    # Faux si l'automatisation ne doit envoyer aucune commande (mode manuel, ou
+    # hors plage horaire au-delà de la marge de transition) : la clim est
+    # laissée entièrement à la main de l'utilisateur.
+    managed: bool = True
 
     @property
     def is_on(self) -> bool:

@@ -20,6 +20,13 @@ SOLAR_DEBOUNCE_SECONDS: Final = 30
 # Délai après une commande avant de vérifier qu'elle a bien été appliquée.
 COMMAND_VERIFY_DELAY_SECONDS: Final = 20
 
+# Marge de transition autour de la plage horaire de fonctionnement : pendant
+# cette marge (juste après l'arrêt du soir, juste avant le début du matin),
+# l'automatisation continue de forcer l'extinction. Au-delà, en pleine
+# période hors-plage, elle ne touche plus la clim (l'utilisateur reprend la
+# main librement jusqu'à la marge de reprise avant l'heure de début).
+OFF_WINDOW_MARGIN_MINUTES: Final = 6
+
 # --- Nombre de zones ----------------------------------------------------------
 NUM_ZONES: Final = 3
 ZONE_KEYS: Final = ["zone_1", "zone_2", "zone_3"]
@@ -109,6 +116,7 @@ DECALAGE_COUCHER_STEP: Final = 5.0
 # (utilisés pour construire les unique_id et le stockage runtime)
 SETTING_ACTIVE: Final = "active"
 SETTING_SOLAR_ONLY: Final = "solar_only"
+SETTING_MANUAL: Final = "manual"
 SETTING_TEMP_CONFORT: Final = "temp_confort"
 SETTING_TEMP_ECO: Final = "temp_eco"
 SETTING_SEUIL_HAUTE: Final = "seuil_haute"
@@ -134,3 +142,5 @@ COMPUTED_ECO: Final = "eco"
 COMPUTED_HORS_GEL: Final = "hors_gel"
 COMPUTED_PRECHAUFFE_ROUGE: Final = "prechauffe_rouge"
 COMPUTED_DISABLED: Final = "disabled"
+COMPUTED_MANUAL: Final = "manuel"
+COMPUTED_NON_GERE: Final = "non_gere"
