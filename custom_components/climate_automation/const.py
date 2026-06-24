@@ -22,9 +22,9 @@ COMMAND_VERIFY_DELAY_SECONDS: Final = 20
 
 # Marge de transition autour de la plage horaire de fonctionnement : pendant
 # cette marge (juste après l'arrêt du soir, juste avant le début du matin),
-# l'automatisation ne touche plus la clim, laissée à l'utilisateur. En dehors
-# de cette marge, en pleine période hors-plage, elle continue de forcer
-# l'extinction.
+# l'automatisation continue de forcer l'extinction. Au-delà, en pleine nuit,
+# elle ne touche plus la clim, laissée à l'utilisateur jusqu'à la marge de
+# reprise avant l'heure de début.
 OFF_WINDOW_MARGIN_MINUTES: Final = 6
 
 # --- Nombre de zones ----------------------------------------------------------
