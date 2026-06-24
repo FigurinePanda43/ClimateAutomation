@@ -33,12 +33,15 @@ from .const import (
     COMPUTED_DISABLED,
     COMPUTED_ECO,
     COMPUTED_HORS_GEL,
+    COMPUTED_MANUAL,
+    COMPUTED_NON_GERE,
     COMPUTED_OFF,
     COMPUTED_PRECHAUFFE_ROUGE,
     DEFAULT_ANTI_COURT_CYCLE_MINUTES,
     DEVICE_MIN_TEMP_SETPOINT,
     DOMAIN,
     HVAC_OFF,
+    OFF_WINDOW_MARGIN_MINUTES,
     SOLAR_DEBOUNCE_SECONDS,
     TEMPO_ROUGE,
     UPDATE_INTERVAL_SECONDS,
@@ -244,6 +247,9 @@ class ClimateAutomationCoordinator(DataUpdateCoordinator[dict[str, DesiredState]
             )
 
         off_state = DesiredState(computed=COMPUTED_OFF, hvac_mode=HVAC_OFF)
+        unmanaged_state = DesiredState(
+            computed=COMPUTED_NON_GERE, hvac_mode=HVAC_OFF, managed=False
+        )
 
         tempo = self._get_tempo()
 
@@ -278,13 +284,26 @@ class ClimateAutomationCoordinator(DataUpdateCoordinator[dict[str, DesiredState]
 
         current = now.time()
 
-        # 2. Plage horaire. Le début dépend de la couleur Tempo.
+        # 2. Plage horaire. Le début dépend de la couleur Tempo. En dehors de la
+        # plage, l'automatisation force l'extinction uniquement pendant une
+        # marge de transition ; au-delà, elle ne touche plus la clim et laisse
+        # l'utilisateur libre de la piloter manuellement jusqu'à la reprise.
         start = g.heure_start_rouge if tempo == TEMPO_ROUGE else s.heure_start_normal
+        margin = timedelta(minutes=OFF_WINDOW_MARGIN_MINUTES)
+
         if current < start:
-            return off_state
+            start_dt = now.replace(
+                hour=start.hour, minute=start.minute, second=start.second, microsecond=0
+            )
+            if now >= start_dt - margin:
+                return off_state
+            return unmanaged_state
+
         sunset_stop = self._sunset_stop(now, s.decalage_coucher)
         if sunset_stop is not None and now >= sunset_stop:
-            return off_state
+            if now < sunset_stop + margin:
+                return off_state
+            return unmanaged_state
 
         # 3. Jour rouge, fenêtre matinale -> préchauffe ÉCO forcée.
         if tempo == TEMPO_ROUGE and current < g.heure_stop_rouge_matin:
@@ -300,9 +319,18 @@ class ClimateAutomationCoordinator(DataUpdateCoordinator[dict[str, DesiredState]
 
         Le hors-gel est un *plancher* : il ne fait jamais baisser une consigne
         déjà plus haute, et reste actif même si la zone ou la clim est
-        désactivée manuellement (sécurité du logement avant tout).
+        désactivée manuellement (sécurité du logement avant tout). Le mode
+        manuel d'une zone est en revanche total : l'automatisation ne touche
+        plus du tout la clim, y compris pour le hors-gel.
         """
         g = self.global_settings
+        s = self.settings[zone.key]
+
+        if s.manual:
+            return DesiredState(
+                computed=COMPUTED_MANUAL, hvac_mode=HVAC_OFF, managed=False
+            )
+
         clim_active = self.clim_enabled.get(clim, True)
 
         room_temp = self._get_zone_temperature(zone)
@@ -373,6 +401,11 @@ class ClimateAutomationCoordinator(DataUpdateCoordinator[dict[str, DesiredState]
         self, zone: ZoneConfig, clim: str, desired: DesiredState
     ) -> None:
         """Fait converger une clim vers l'état désiré (avec sécurités)."""
+        if not desired.managed:
+            # Mode manuel ou hors plage horaire (au-delà de la marge de
+            # transition) : on ne touche pas à la clim, laissée à l'utilisateur.
+            return
+
         desired = self._clamp_temperature(desired)
         now = dt_util.now()
         currently_on = self._is_on(clim)
