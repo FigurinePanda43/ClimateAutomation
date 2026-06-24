@@ -11,12 +11,11 @@
       },
       "zone": {
         "title": "Configuration de la zone {zone}",
-        "description": "Climatiseurs rattachés, capteur de température et mois de chauffe de cette zone.",
+        "description": "Climatiseurs rattachés et capteur de température de cette zone.",
         "data": {
           "name": "Nom de la zone",
           "climates": "Climatiseurs de la zone",
-          "temp_sensor": "Capteur de température de la zone (hors-gel)",
-          "active_months": "Mois de chauffe actifs"
+          "temp_sensor": "Capteur de température de la zone (hors-gel)"
         }
       },
       "flux": {

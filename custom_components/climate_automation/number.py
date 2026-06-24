@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from collections.abc import Callable
 
 from homeassistant.components.number import NumberEntity, NumberMode
 from homeassistant.config_entries import ConfigEntry
@@ -43,8 +42,8 @@ from .models import ZoneConfig
 
 
 @dataclass(frozen=True, kw_only=True)
-class ZoneNumberDescription:
-    """Décrit une entité number de zone."""
+class NumberDescription:
+    """Décrit une entité number (zone ou globale)."""
 
     key: str
     name: str
@@ -53,11 +52,10 @@ class ZoneNumberDescription:
     max_value: float
     step: float
     unit: str
-    on_main_device: bool = False
 
 
-ZONE_NUMBERS: tuple[ZoneNumberDescription, ...] = (
-    ZoneNumberDescription(
+ZONE_NUMBERS: tuple[NumberDescription, ...] = (
+    NumberDescription(
         key=SETTING_TEMP_CONFORT,
         name="Température confort",
         icon="mdi:thermometer-high",
@@ -66,7 +64,7 @@ ZONE_NUMBERS: tuple[ZoneNumberDescription, ...] = (
         step=TEMP_STEP,
         unit=UnitOfTemperature.CELSIUS,
     ),
-    ZoneNumberDescription(
+    NumberDescription(
         key=SETTING_TEMP_ECO,
         name="Température éco",
         icon="mdi:thermometer-low",
@@ -75,17 +73,7 @@ ZONE_NUMBERS: tuple[ZoneNumberDescription, ...] = (
         step=TEMP_STEP,
         unit=UnitOfTemperature.CELSIUS,
     ),
-    ZoneNumberDescription(
-        key=SETTING_HORS_GEL,
-        name="Seuil hors-gel (température pièce)",
-        icon="mdi:snowflake-thermometer",
-        min_value=MIN_HORS_GEL_THRESHOLD,
-        max_value=MAX_HORS_GEL_THRESHOLD,
-        step=TEMP_STEP,
-        unit=UnitOfTemperature.CELSIUS,
-        on_main_device=True,
-    ),
-    ZoneNumberDescription(
+    NumberDescription(
         key=SETTING_SEUIL_HAUTE,
         name="Seuil production haute",
         icon="mdi:solar-power",
@@ -94,7 +82,7 @@ ZONE_NUMBERS: tuple[ZoneNumberDescription, ...] = (
         step=SEUIL_STEP,
         unit=UnitOfPower.KILO_WATT,
     ),
-    ZoneNumberDescription(
+    NumberDescription(
         key=SETTING_SEUIL_BASSE,
         name="Seuil production basse",
         icon="mdi:solar-power-variant",
@@ -103,7 +91,7 @@ ZONE_NUMBERS: tuple[ZoneNumberDescription, ...] = (
         step=SEUIL_STEP,
         unit=UnitOfPower.KILO_WATT,
     ),
-    ZoneNumberDescription(
+    NumberDescription(
         key=SETTING_DECALAGE_COUCHER,
         name="Décalage coucher du soleil (négatif = avant, positif = après)",
         icon="mdi:weather-sunset-down",
@@ -111,6 +99,19 @@ ZONE_NUMBERS: tuple[ZoneNumberDescription, ...] = (
         max_value=MAX_DECALAGE_COUCHER,
         step=DECALAGE_COUCHER_STEP,
         unit=UnitOfTime.MINUTES,
+    ),
+)
+
+# Réglages communs aux 3 zones (une seule entité pour les piloter).
+GLOBAL_NUMBERS: tuple[NumberDescription, ...] = (
+    NumberDescription(
+        key=SETTING_HORS_GEL,
+        name="Seuil hors-gel (température pièce)",
+        icon="mdi:snowflake-thermometer",
+        min_value=MIN_HORS_GEL_THRESHOLD,
+        max_value=MAX_HORS_GEL_THRESHOLD,
+        step=TEMP_STEP,
+        unit=UnitOfTemperature.CELSIUS,
     ),
 )
 
@@ -124,6 +125,8 @@ async def async_setup_entry(
     coordinator: ClimateAutomationCoordinator = hass.data[DOMAIN][entry.entry_id]
 
     entities: list[NumberEntity] = [AntiCourtCycleNumber(coordinator)]
+    for desc in GLOBAL_NUMBERS:
+        entities.append(GlobalNumber(coordinator, desc))
     for zone in coordinator.zones.values():
         for desc in ZONE_NUMBERS:
             entities.append(ZoneNumber(coordinator, zone, desc))
@@ -140,14 +143,12 @@ class ZoneNumber(ZoneEntity, NumberEntity, RestoreEntity):
         self,
         coordinator: ClimateAutomationCoordinator,
         zone: ZoneConfig,
-        desc: ZoneNumberDescription,
+        desc: NumberDescription,
     ) -> None:
-        super().__init__(coordinator, zone, on_main_device=desc.on_main_device)
+        super().__init__(coordinator, zone)
         self._desc = desc
         self._attr_unique_id = f"{coordinator.entry_id}_{zone.key}_{desc.key}"
-        self._attr_name = (
-            f"{zone.name} {desc.name}" if desc.on_main_device else desc.name
-        )
+        self._attr_name = desc.name
         self._attr_icon = desc.icon
         self._attr_native_min_value = desc.min_value
         self._attr_native_max_value = desc.max_value
@@ -171,6 +172,44 @@ class ZoneNumber(ZoneEntity, NumberEntity, RestoreEntity):
         await self.coordinator.async_set_zone_setting(
             self.zone.key, self._desc.key, value
         )
+        self.async_write_ha_state()
+
+
+class GlobalNumber(ClimateAutomationEntity, NumberEntity, RestoreEntity):
+    """Réglage numérique commun aux 3 zones."""
+
+    _attr_mode = NumberMode.BOX
+
+    def __init__(
+        self,
+        coordinator: ClimateAutomationCoordinator,
+        desc: NumberDescription,
+    ) -> None:
+        super().__init__(coordinator)
+        self._desc = desc
+        self._attr_unique_id = f"{coordinator.entry_id}_{desc.key}"
+        self._attr_name = desc.name
+        self._attr_icon = desc.icon
+        self._attr_native_min_value = desc.min_value
+        self._attr_native_max_value = desc.max_value
+        self._attr_native_step = desc.step
+        self._attr_native_unit_of_measurement = desc.unit
+
+    async def async_added_to_hass(self) -> None:
+        await super().async_added_to_hass()
+        if (last := await self.async_get_last_state()) is not None:
+            try:
+                value = float(last.state)
+            except (ValueError, TypeError):
+                return
+            setattr(self.coordinator.global_settings, self._desc.key, value)
+
+    @property
+    def native_value(self) -> float:
+        return getattr(self.coordinator.global_settings, self._desc.key)
+
+    async def async_set_native_value(self, value: float) -> None:
+        await self.coordinator.async_set_global_setting(self._desc.key, value)
         self.async_write_ha_state()
 
 

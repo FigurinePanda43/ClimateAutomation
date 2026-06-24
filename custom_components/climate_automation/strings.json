@@ -11,12 +11,11 @@
       },
       "zone": {
         "title": "Zone {zone} configuration",
-        "description": "Climate devices, temperature sensor and heating months for this zone.",
+        "description": "Climate devices and temperature sensor for this zone.",
         "data": {
           "name": "Zone name",
           "climates": "Zone climate devices",
-          "temp_sensor": "Zone temperature sensor (frost protection)",
-          "active_months": "Active heating months"
+          "temp_sensor": "Zone temperature sensor (frost protection)"
         }
       },
       "flux": {

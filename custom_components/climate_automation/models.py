@@ -9,7 +9,6 @@ from .const import (
     CONF_ZONE_CLIMATES,
     CONF_ZONE_FLUX_H_MAP,
     CONF_ZONE_FLUX_V_MAP,
-    CONF_ZONE_MONTHS,
     CONF_ZONE_NAME,
     CONF_ZONE_TEMP_SENSOR,
     DEFAULT_DECALAGE_COUCHER,
@@ -42,8 +41,6 @@ class ZoneConfig:
     # Mapping climate_entity -> select_entity de flux.
     flux_h_map: dict[str, str] = field(default_factory=dict)
     flux_v_map: dict[str, str] = field(default_factory=dict)
-    # Mois (1..12) où le chauffage est autorisé pour cette zone.
-    active_months: list[int] = field(default_factory=list)
 
     @classmethod
     def from_dict(cls, key: str, data: dict) -> "ZoneConfig":
@@ -55,7 +52,6 @@ class ZoneConfig:
             temp_sensor=data.get(CONF_ZONE_TEMP_SENSOR) or None,
             flux_h_map=dict(data.get(CONF_ZONE_FLUX_H_MAP, {})),
             flux_v_map=dict(data.get(CONF_ZONE_FLUX_V_MAP, {})),
-            active_months=list(data.get(CONF_ZONE_MONTHS, list(range(1, 13)))),
         )
 
 
@@ -73,16 +69,28 @@ class ZoneSettings:
     temp_eco: float = DEFAULT_TEMP_ECO
     seuil_haute: float = DEFAULT_SEUIL_HAUTE
     seuil_basse: float = DEFAULT_SEUIL_BASSE
-    hors_gel: float = DEFAULT_HORS_GEL
+    heure_start_normal: time = DEFAULT_HEURE_START_NORMAL
+    # Minutes par rapport au coucher du soleil (négatif = avant, positif = après).
+    decalage_coucher: float = DEFAULT_DECALAGE_COUCHER
+
+
+@dataclass
+class GlobalSettings:
+    """Réglages communs aux 3 zones, pilotés depuis l'appareil principal.
+
+    Contrairement à :class:`ZoneSettings`, ces valeurs ne sont pas dupliquées
+    par zone : une seule entité commande les 3 zones à la fois.
+    """
+
     hvac_mode: str = DEFAULT_HVAC_MODE
     fan_mode: str = DEFAULT_FAN_MODE
     flux_horizontal: str | None = None
     flux_vertical: str | None = None
+    hors_gel: float = DEFAULT_HORS_GEL
     heure_start_rouge: time = DEFAULT_HEURE_START_ROUGE
-    heure_start_normal: time = DEFAULT_HEURE_START_NORMAL
     heure_stop_rouge_matin: time = DEFAULT_HEURE_STOP_ROUGE_MATIN
-    # Minutes par rapport au coucher du soleil (négatif = avant, positif = après).
-    decalage_coucher: float = DEFAULT_DECALAGE_COUCHER
+    # Mois (1..12) où le chauffage est autorisé, communs aux 3 zones.
+    active_months: set[int] = field(default_factory=lambda: set(range(1, 13)))
 
 
 @dataclass

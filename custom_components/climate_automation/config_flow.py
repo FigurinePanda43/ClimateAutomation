@@ -20,7 +20,6 @@ from .const import (
     CONF_ZONE_CLIMATES,
     CONF_ZONE_FLUX_H_MAP,
     CONF_ZONE_FLUX_V_MAP,
-    CONF_ZONE_MONTHS,
     CONF_ZONE_NAME,
     CONF_ZONE_TEMP_SENSOR,
     CONF_ZONES,
@@ -28,34 +27,6 @@ from .const import (
     NUM_ZONES,
     ZONE_KEYS,
 )
-
-_MONTH_LABELS = [
-    ("1", "Janvier"),
-    ("2", "Février"),
-    ("3", "Mars"),
-    ("4", "Avril"),
-    ("5", "Mai"),
-    ("6", "Juin"),
-    ("7", "Juillet"),
-    ("8", "Août"),
-    ("9", "Septembre"),
-    ("10", "Octobre"),
-    ("11", "Novembre"),
-    ("12", "Décembre"),
-]
-
-
-def _months_selector() -> selector.SelectSelector:
-    return selector.SelectSelector(
-        selector.SelectSelectorConfig(
-            options=[
-                selector.SelectOptionDict(value=v, label=lbl)
-                for v, lbl in _MONTH_LABELS
-            ],
-            multiple=True,
-            mode=selector.SelectSelectorMode.DROPDOWN,
-        )
-    )
 
 
 def _climate_selector() -> selector.EntitySelector:
@@ -113,9 +84,6 @@ class ClimateAutomationConfigFlow(ConfigFlow, domain=DOMAIN):
                 CONF_ZONE_NAME: user_input[CONF_ZONE_NAME],
                 CONF_ZONE_CLIMATES: user_input.get(CONF_ZONE_CLIMATES, []),
                 CONF_ZONE_TEMP_SENSOR: user_input.get(CONF_ZONE_TEMP_SENSOR),
-                CONF_ZONE_MONTHS: [
-                    int(m) for m in user_input.get(CONF_ZONE_MONTHS, [])
-                ],
             }
             self._zone_index += 1
             if self._zone_index < NUM_ZONES:
@@ -127,10 +95,6 @@ class ClimateAutomationConfigFlow(ConfigFlow, domain=DOMAIN):
                 vol.Required(CONF_ZONE_NAME, default=f"Zone {self._zone_index + 1}"): str,
                 vol.Optional(CONF_ZONE_CLIMATES, default=[]): _climate_selector(),
                 vol.Optional(CONF_ZONE_TEMP_SENSOR): _sensor_selector(),
-                vol.Optional(
-                    CONF_ZONE_MONTHS,
-                    default=[v for v, _ in _MONTH_LABELS],
-                ): _months_selector(),
             }
         )
         return self.async_show_form(
