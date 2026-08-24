@@ -6,13 +6,16 @@ import logging
 
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import Platform
-from homeassistant.core import HomeAssistant
+from homeassistant.core import HomeAssistant, callback
+from homeassistant.helpers import entity_registry as er
 
 from .const import (
     CONF_SOLAR_SENSOR,
     CONF_TEMPO_SENSOR,
     CONF_ZONES,
     DOMAIN,
+    SETTING_FLUX_H,
+    SETTING_FLUX_V,
 )
 from .coordinator import ClimateAutomationCoordinator
 from .models import ZoneConfig
@@ -48,6 +51,8 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 
     hass.data.setdefault(DOMAIN, {})[entry.entry_id] = coordinator
 
+    _async_cleanup_removed_climates(hass, entry, zones)
+
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
 
     coordinator.async_setup_listeners()
@@ -67,6 +72,45 @@ async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         )
         coordinator.async_unload()
     return unload_ok
+
+
+@callback
+def _async_cleanup_removed_climates(
+    hass: HomeAssistant, entry: ConfigEntry, zones: dict[str, ZoneConfig]
+) -> None:
+    """Supprime les entités des climatiseurs retirés de la configuration.
+
+    Les zones sont modifiables après installation : quand une clim est retirée
+    d'une zone, son capteur d'état calculé et son interrupteur d'activation
+    n'ont plus de raison d'être et resteraient sinon indisponibles à jamais
+    dans le registre.
+    """
+    slugs = {
+        clim.split(".", 1)[-1] for zone in zones.values() for clim in zone.climates
+    }
+    prefixes = (f"{entry.entry_id}_computed_", f"{entry.entry_id}_enable_")
+    valid = {f"{prefix}{slug}" for prefix in prefixes for slug in slugs}
+
+    # Les sélecteurs de flux communs n'existent que si au moins une clim a une
+    # entité select de flux associée.
+    stale = set()
+    for setting, attribute in (
+        (SETTING_FLUX_H, "flux_h_map"),
+        (SETTING_FLUX_V, "flux_v_map"),
+    ):
+        if not any(getattr(zone, attribute) for zone in zones.values()):
+            stale.add(f"{entry.entry_id}_{setting}")
+
+    registry = er.async_get(hass)
+    for reg_entry in list(er.async_entries_for_config_entry(registry, entry.entry_id)):
+        unique_id = reg_entry.unique_id
+        obsolete_clim = unique_id.startswith(prefixes) and unique_id not in valid
+        if obsolete_clim or unique_id in stale:
+            _LOGGER.debug(
+                "Suppression de %s (retiré de la configuration)",
+                reg_entry.entity_id,
+            )
+            registry.async_remove(reg_entry.entity_id)
 
 
 async def _async_reload_entry(hass: HomeAssistant, entry: ConfigEntry) -> None:

@@ -122,6 +122,22 @@ lecture d'état asynchrone de l'ancienne version).
   température de la zone, mapping `flux horizontal`/`flux vertical`
   (`select.*`) par clim, mois actifs.
 
+**Tout reste modifiable après l'installation.** Le bouton « Configurer » de
+l'intégration ouvre un menu (options flow) :
+
+| Entrée du menu | Ce qu'on y modifie |
+|---|---|
+| Capteurs globaux | capteur de production solaire, capteur Tempo |
+| Zone 1 / 2 / 3 | nom de la zone, climatiseurs rattachés (ajout/retrait), capteur de température ; enchaîne sur les flux d'air des clims de la zone |
+| Flux d'air | mapping `select.*` horizontal/vertical de **tous** les climatiseurs |
+
+Chaque validation recharge l'entrée de configuration. Les réglages « live »
+(§ 5.2) sont conservés : les entités sont recréées avec le même `unique_id` et
+restaurent leur valeur. Une clim retirée d'une zone n'est plus pilotée (elle
+reste dans l'état où elle était) et ses entités dédiées — capteur d'état
+calculé, interrupteur d'activation — sont supprimées du registre plutôt que
+laissées indisponibles.
+
 ### 5.2 Entités créées par l'intégration (réglages courants, ajustables en direct)
 
 - **Global** : `number` délai anti-court-cycle.
