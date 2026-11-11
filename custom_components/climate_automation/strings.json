@@ -11,7 +11,7 @@
       },
       "zone": {
         "title": "Zone {zone} configuration",
-        "description": "Climate devices and temperature sensor for this zone.",
+        "description": "Climate devices and temperature sensor for this zone. Everything can be changed later from the integration's \"Configure\" button.",
         "data": {
           "name": "Zone name",
           "climates": "Zone climate devices",
@@ -27,12 +27,61 @@
   "options": {
     "step": {
       "init": {
+        "title": "Climate Automation — Configuration",
+        "description": "What do you want to change?\n\nCurrent zones:\n{zones}",
+        "menu_options": {
+          "sensors": "Global sensors (solar, Tempo)",
+          "zone_1": "Zone 1 — name, climate devices, sensor",
+          "zone_2": "Zone 2 — name, climate devices, sensor",
+          "zone_3": "Zone 3 — name, climate devices, sensor",
+          "flux": "Air flow mapping (all climate devices)"
+        }
+      },
+      "sensors": {
         "title": "Global sensors",
         "data": {
           "solar_sensor": "Solar production sensor (kW)",
           "tempo_sensor": "Tempo color sensor (RTE)"
         }
+      },
+      "zone_1": {
+        "title": "Zone 1 — {name}",
+        "description": "Add or remove climate devices, rename the zone, change its temperature sensor. Removed devices are no longer controlled and their entities are deleted.",
+        "data": {
+          "name": "Zone name",
+          "climates": "Zone climate devices",
+          "temp_sensor": "Zone temperature sensor (frost protection)"
+        }
+      },
+      "zone_2": {
+        "title": "Zone 2 — {name}",
+        "description": "Add or remove climate devices, rename the zone, change its temperature sensor. Removed devices are no longer controlled and their entities are deleted.",
+        "data": {
+          "name": "Zone name",
+          "climates": "Zone climate devices",
+          "temp_sensor": "Zone temperature sensor (frost protection)"
+        }
+      },
+      "zone_3": {
+        "title": "Zone 3 — {name}",
+        "description": "Add or remove climate devices, rename the zone, change its temperature sensor. Removed devices are no longer controlled and their entities are deleted.",
+        "data": {
+          "name": "Zone name",
+          "climates": "Zone climate devices",
+          "temp_sensor": "Zone temperature sensor (frost protection)"
+        }
+      },
+      "zone_flux": {
+        "title": "Air flow — {name}",
+        "description": "Map each climate device of this zone to its horizontal (__h) and vertical (__v) air flow select entities. Leave empty if the device has none."
+      },
+      "flux": {
+        "title": "Air flow per climate device",
+        "description": "Map each climate device to its horizontal (__h) and vertical (__v) air flow select entities. Leave empty if the device has none."
       }
+    },
+    "abort": {
+      "no_climates": "No climate device is configured yet. Add some to a zone first."
     }
   }
 }

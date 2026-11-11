@@ -11,7 +11,7 @@
       },
       "zone": {
         "title": "Configuration de la zone {zone}",
-        "description": "Climatiseurs rattachés et capteur de température de cette zone.",
+        "description": "Climatiseurs rattachés et capteur de température de cette zone. Tout reste modifiable ensuite via le bouton « Configurer » de l'intégration.",
         "data": {
           "name": "Nom de la zone",
           "climates": "Climatiseurs de la zone",
@@ -27,12 +27,61 @@
   "options": {
     "step": {
       "init": {
+        "title": "Climate Automation — Configuration",
+        "description": "Que souhaitez-vous modifier ?\n\nZones actuelles :\n{zones}",
+        "menu_options": {
+          "sensors": "Capteurs globaux (solaire, Tempo)",
+          "zone_1": "Zone 1 — nom, climatiseurs, capteur",
+          "zone_2": "Zone 2 — nom, climatiseurs, capteur",
+          "zone_3": "Zone 3 — nom, climatiseurs, capteur",
+          "flux": "Flux d'air (tous les climatiseurs)"
+        }
+      },
+      "sensors": {
         "title": "Capteurs globaux",
         "data": {
           "solar_sensor": "Capteur de production solaire (kW)",
           "tempo_sensor": "Capteur couleur Tempo (RTE)"
         }
+      },
+      "zone_1": {
+        "title": "Zone 1 — {name}",
+        "description": "Ajoutez ou retirez des climatiseurs, renommez la zone, changez son capteur de température. Les climatiseurs retirés ne sont plus pilotés et leurs entités sont supprimées.",
+        "data": {
+          "name": "Nom de la zone",
+          "climates": "Climatiseurs de la zone",
+          "temp_sensor": "Capteur de température de la zone (hors-gel)"
+        }
+      },
+      "zone_2": {
+        "title": "Zone 2 — {name}",
+        "description": "Ajoutez ou retirez des climatiseurs, renommez la zone, changez son capteur de température. Les climatiseurs retirés ne sont plus pilotés et leurs entités sont supprimées.",
+        "data": {
+          "name": "Nom de la zone",
+          "climates": "Climatiseurs de la zone",
+          "temp_sensor": "Capteur de température de la zone (hors-gel)"
+        }
+      },
+      "zone_3": {
+        "title": "Zone 3 — {name}",
+        "description": "Ajoutez ou retirez des climatiseurs, renommez la zone, changez son capteur de température. Les climatiseurs retirés ne sont plus pilotés et leurs entités sont supprimées.",
+        "data": {
+          "name": "Nom de la zone",
+          "climates": "Climatiseurs de la zone",
+          "temp_sensor": "Capteur de température de la zone (hors-gel)"
+        }
+      },
+      "zone_flux": {
+        "title": "Flux d'air — {name}",
+        "description": "Associez à chaque climatiseur de cette zone ses entités select de flux horizontal (__h) et vertical (__v). Laissez vide si le climatiseur n'en a pas."
+      },
+      "flux": {
+        "title": "Flux d'air par climatiseur",
+        "description": "Associez à chaque climatiseur ses entités select de flux horizontal (__h) et vertical (__v). Laissez vide si le climatiseur n'en a pas."
       }
+    },
+    "abort": {
+      "no_climates": "Aucun climatiseur n'est configuré pour l'instant. Ajoutez-en d'abord à une zone."
     }
   }
 }
