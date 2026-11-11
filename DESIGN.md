@@ -158,4 +158,17 @@ custom_components/climate_automation/
   time.py
   sensor.py          # capteur d'état/diagnostic par zone
 hacs.json            # métadonnées HACS
+.github/workflows/
+  release.yml        # publication automatique des releases
 ```
+
+---
+
+## 7. Publication des releases
+
+Tout se fait sur `main`. Pour publier une nouvelle version : changer
+`"version"` dans `custom_components/climate_automation/manifest.json`
+(format `X.Y.Z`) puis pousser sur `main`. Le workflow `Release` crée le tag
+`vX.Y.Z` et la release GitHub (notes = commits depuis la release précédente,
+zip de l'intégration joint), que HACS propose ensuite en mise à jour. Une
+version déjà publiée n'est jamais republiée.

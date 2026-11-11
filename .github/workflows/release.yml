@@ -1,0 +1,91 @@
+# Publie automatiquement une release GitHub (lue par HACS) à chaque nouvelle
+# version.
+#
+# Pour publier : changer "version" dans
+# custom_components/climate_automation/manifest.json puis pousser sur main.
+# Le workflow crée alors le tag vX.Y.Z et la release correspondante, avec la
+# liste des commits depuis la release précédente et un zip de l'intégration.
+# Si le tag existe déjà (version inchangée), il ne fait rien.
+
+name: Release
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - custom_components/climate_automation/manifest.json
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+jobs:
+  release:
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    env:
+      INTEGRATION_DIR: custom_components/climate_automation
+    steps:
+      - name: Récupérer le dépôt (avec l'historique et les tags)
+        uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      - name: Lire la version du manifest
+        id: version
+        run: |
+          version=$(jq -r '.version' "$INTEGRATION_DIR/manifest.json")
+          if ! [[ "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "::error file=$INTEGRATION_DIR/manifest.json::Version invalide : « $version » (format attendu : X.Y.Z)"
+            exit 1
+          fi
+          tag="v$version"
+          echo "tag=$tag" >> "$GITHUB_OUTPUT"
+          if git rev-parse -q --verify "refs/tags/$tag" >/dev/null; then
+            echo "exists=true" >> "$GITHUB_OUTPUT"
+            echo "::notice::La release $tag existe déjà : rien à publier."
+          else
+            echo "exists=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Vérifier les fichiers de l'intégration
+        if: steps.version.outputs.exists == 'false'
+        run: |
+          for f in "$INTEGRATION_DIR"/*.json "$INTEGRATION_DIR"/translations/*.json hacs.json; do
+            jq empty "$f"
+          done
+          python3 -m py_compile "$INTEGRATION_DIR"/*.py
+
+      - name: Préparer les notes et le zip
+        if: steps.version.outputs.exists == 'false'
+        env:
+          TAG: ${{ steps.version.outputs.tag }}
+        run: |
+          notes="$RUNNER_TEMP/notes.md"
+          if previous=$(git describe --tags --abbrev=0 --match 'v[0-9]*' 2>/dev/null); then
+            range="$previous..HEAD"
+            echo "## Changements depuis $previous" > "$notes"
+          else
+            range="HEAD"
+            echo "## Changements" > "$notes"
+          fi
+          echo >> "$notes"
+          git log --no-merges --format='- %s' "$range" >> "$notes"
+          cat "$notes"
+
+          (cd "$INTEGRATION_DIR" && zip -r -q "$RUNNER_TEMP/climate_automation.zip" . -x '__pycache__/*' '*.pyc')
+
+      - name: Publier la release
+        if: steps.version.outputs.exists == 'false'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ steps.version.outputs.tag }}
+        run: |
+          gh release create "$TAG" "$RUNNER_TEMP/climate_automation.zip" \
+            --target "$GITHUB_SHA" \
+            --title "$TAG" \
+            --notes-file "$RUNNER_TEMP/notes.md"

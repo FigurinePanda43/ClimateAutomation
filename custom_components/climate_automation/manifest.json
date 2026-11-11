@@ -1,7 +1,7 @@
 {
   "domain": "climate_automation",
   "name": "Climate Automation",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "documentation": "https://github.com/FigurinePanda43/ClimateAutomation",
   "issue_tracker": "https://github.com/FigurinePanda43/ClimateAutomation/issues",
   "dependencies": [],
