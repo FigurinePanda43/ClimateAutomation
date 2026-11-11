@@ -6,7 +6,8 @@ import logging
 
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import Platform
-from homeassistant.core import HomeAssistant
+from homeassistant.core import HomeAssistant, callback
+from homeassistant.helpers import device_registry as dr
 
 from .const import (
     CONF_SOLAR_SENSOR,
@@ -15,6 +16,7 @@ from .const import (
     DOMAIN,
 )
 from .coordinator import ClimateAutomationCoordinator
+from .entity import main_device_info, zone_device_info
 from .models import ZoneConfig
 
 _LOGGER = logging.getLogger(__name__)
@@ -48,6 +50,8 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 
     hass.data.setdefault(DOMAIN, {})[entry.entry_id] = coordinator
 
+    _async_register_devices(hass, entry, zones)
+
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
 
     coordinator.async_setup_listeners()
@@ -56,6 +60,28 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     entry.async_on_unload(entry.add_update_listener(_async_reload_entry))
 
     return True
+
+
+@callback
+def _async_register_devices(
+    hass: HomeAssistant, entry: ConfigEntry, zones: dict[str, ZoneConfig]
+) -> None:
+    """Enregistre l'appareil principal et les zones avant de créer les entités.
+
+    Chaque zone est rattachée à l'appareil principal par son identifiant dans
+    le registre (``via_device_id``) et non plus par ``via_device`` dans le
+    ``DeviceInfo`` des entités, refusé par Home Assistant 2026.11.
+    """
+    dev_reg = dr.async_get(hass)
+    main_device = dev_reg.async_get_or_create(
+        config_entry_id=entry.entry_id, **main_device_info(entry.entry_id)
+    )
+    for zone in zones.values():
+        zone_device = dev_reg.async_get_or_create(
+            config_entry_id=entry.entry_id, **zone_device_info(entry.entry_id, zone)
+        )
+        if zone_device.via_device_id != main_device.id:
+            dev_reg.async_update_device(zone_device.id, via_device_id=main_device.id)
 
 
 async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
